@@ -10,8 +10,21 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@google/generative-ai": "^0.24.1",
+    "@monaco-editor/react": "^4.7.0",
+    "@tailwindcss/vite": "^4.3.2",
+    "file-saver": "^2.0.5",
+    "framer-motion": "^12.42.2",
+    "lucide-react": "^1.23.0",
     "react": "^19.2.7",
-    "react-dom": "^19.2.7"
+    "react-dnd": "^16.0.1",
+    "react-dnd-html5-backend": "^16.0.1",
+    "react-dom": "^19.2.7",
+    "react-hook-form": "^7.81.0",
+    "react-hot-toast": "^2.6.0",
+    "tailwindcss": "^4.3.2",
+    "zod": "^4.4.3",
+    "zustand": "^5.0.14"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
