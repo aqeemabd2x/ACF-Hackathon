@@ -94,11 +94,19 @@ export default function InspectorPanel() {
 
 function flattenFields(fields) {
   if (!Array.isArray(fields)) return []
-  return fields.flatMap((f) => [
-    f,
-    ...flattenFields(f.sub_fields || []),
-    ...flattenFields(f.layouts?.flatMap((l) => l.sub_fields || []) || []),
-  ])
+  return fields.flatMap((f) => {
+    // ACF's exported JSON stores flexible_content `layouts` as an object
+    // keyed by layout key, not always a plain array — normalize both.
+    const layoutsArray = f.layouts
+      ? (Array.isArray(f.layouts) ? f.layouts : Object.values(f.layouts))
+      : []
+
+    return [
+      f,
+      ...flattenFields(f.sub_fields || []),
+      ...flattenFields(layoutsArray.flatMap((l) => l.sub_fields || [])),
+    ]
+  })
 }
 
 function StatCard({ label, value }) {
