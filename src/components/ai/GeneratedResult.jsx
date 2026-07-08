@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useEffect, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { Copy, Download, Check, Code2, Edit3, Minimize2, Maximize2 } from 'lucide-react'
 import Editor from '@monaco-editor/react'
@@ -58,6 +58,21 @@ export default function GeneratedResult({ json, onEdit }) {
   const [copied, setCopied]               = useState(false)
   const [isMinified, setIsMinified]       = useState(false)
 
+  // Tracks the last value *this component* pushed out via onEdit, so we can
+  // tell the difference between "user typed in the editor" (an echo of our
+  // own change coming back down as a prop) and "a brand new JSON arrived
+  // from outside" (new Generate, Import, Merge, undo/redo). Only the latter
+  // should reset the editor — otherwise the cursor jumps while typing.
+  const lastEmittedRef = useRef(json)
+
+  useEffect(() => {
+    if (json !== lastEmittedRef.current) {
+      setLocalJson(prettyPrint(json))
+      setIsMinified(false)
+      lastEmittedRef.current = json
+    }
+  }, [json])
+
   const displayJson = isMinified
     ? (() => { try { return JSON.stringify(JSON.parse(localJson)) } catch { return localJson } })()
     : prettyPrint(localJson)
@@ -70,6 +85,7 @@ export default function GeneratedResult({ json, onEdit }) {
   const handleEditorChange = (value) => {
     const v = value ?? ''
     setLocalJson(v)
+    lastEmittedRef.current = v
     onEdit(v)
   }
 
@@ -95,6 +111,7 @@ export default function GeneratedResult({ json, onEdit }) {
       const newJson = await editACF(editPrompt, localJson)
       const pretty  = prettyPrint(newJson)
       setLocalJson(pretty)
+      lastEmittedRef.current = pretty
       onEdit(pretty)
       setEditPrompt('')
       setEditBarOpen(false)

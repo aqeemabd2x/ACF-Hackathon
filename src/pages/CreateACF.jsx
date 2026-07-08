@@ -8,11 +8,11 @@ import PromptInput from '../components/ai/PromptInput'
 import GeneratedResult from '../components/ai/GeneratedResult'
 
 export default function CreateACF() {
-  const [result, setResult]           = useState(null)
+  const { addPromptHistory, setCurrentJson, currentJson, promptHistory, clearPromptHistory } = useAppStore()
+
+  const [result, setResult]           = useState(() => currentJson)
   const [isGenerating, setGenerating] = useState(false)
   const [showHistory, setShowHistory] = useState(false)
-
-  const { addPromptHistory, setCurrentJson, promptHistory, clearPromptHistory } = useAppStore()
 
   const handleGenerate = async (prompt) => {
     setGenerating(true)
