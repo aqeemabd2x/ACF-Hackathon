@@ -17,8 +17,11 @@ function countFields(fields) {
   if (!Array.isArray(fields)) return 0
   return fields.reduce((acc, f) => {
     let n = 1
-    if (Array.isArray(f.sub_fields))  n += countFields(f.sub_fields)
-    if (Array.isArray(f.layouts))     n += f.layouts.reduce((a, l) => a + countFields(l.sub_fields || []), 0)
+    if (Array.isArray(f.sub_fields)) n += countFields(f.sub_fields)
+    if (f.layouts) {
+      const layoutsArray = Array.isArray(f.layouts) ? f.layouts : Object.values(f.layouts)
+      n += layoutsArray.reduce((a, l) => a + countFields(l.sub_fields || []), 0)
+    }
     return acc + n
   }, 0)
 }
@@ -60,17 +63,18 @@ function validateFields(fields, parentLabel, seenKeys, result) {
     if (Array.isArray(f.sub_fields) && f.sub_fields.length > 0) {
       validateFields(f.sub_fields, label, seenKeys, result)
     }
-    if (Array.isArray(f.layouts)) {
-      for (const layout of f.layouts) {
+    if (f.layouts) {
+    const layoutsArray = Array.isArray(f.layouts) ? f.layouts : Object.values(f.layouts)
+    for (const layout of layoutsArray) {
         if (Array.isArray(layout.sub_fields)) {
-          validateFields(
+        validateFields(
             layout.sub_fields,
             `${label} > ${layout.name || 'layout'}`,
             seenKeys,
             result
-          )
+        )
         }
-      }
+    }
     }
   }
 }

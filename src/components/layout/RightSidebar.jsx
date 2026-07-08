@@ -1,6 +1,10 @@
-import { Layers, ShieldCheck, Sparkles, Clock } from 'lucide-react'
+import { useMemo } from 'react'
+import { Layers, ShieldCheck, Sparkles, Clock, CheckCircle2, XCircle } from 'lucide-react'
 import useAppStore from '../../store/useAppStore'
+import { validateACFJson } from '../../services/acfValidator'
 import InspectorPanel from './panels/InspectorPanel'
+import HistoryPanel from './panels/HistoryPanel'
+import AiSuggestionsPanel from './panels/AiSuggestionsPanel'
 
 const TABS = [
   { id: 'inspector',   label: 'Inspector',  icon: Layers },
@@ -10,7 +14,12 @@ const TABS = [
 ]
 
 export default function RightSidebar() {
-  const { rightPanel, setRightPanel } = useAppStore()
+  const { rightPanel, setRightPanel, currentJson, setCurrentPage } = useAppStore()
+
+  const validation = useMemo(() => {
+    if (!currentJson) return null
+    return validateACFJson(currentJson)
+  }, [currentJson])
 
   return (
     <aside className="w-72 flex flex-col bg-surface border-l border-edge shrink-0">
@@ -40,28 +49,59 @@ export default function RightSidebar() {
       <div className="flex-1 overflow-y-auto p-4">
         {rightPanel === 'inspector' && <InspectorPanel />}
         {rightPanel === 'validation' && (
-          <EmptyState
-            icon={ShieldCheck}
-            title="No Validation"
-            message="Run validation on loaded JSON to see results."
-          />
+          validation ? (
+            <CompactValidation
+              validation={validation}
+              onOpenFull={() => setCurrentPage('validation')}
+            />
+          ) : (
+            <EmptyState
+              icon={ShieldCheck}
+              title="No Validation"
+              message="Run validation on loaded JSON to see results."
+            />
+          )
         )}
-        {rightPanel === 'suggestions' && (
-          <EmptyState
-            icon={Sparkles}
-            title="No Suggestions"
-            message="Generate or load JSON to receive AI suggestions."
-          />
-        )}
-        {rightPanel === 'history' && (
-          <EmptyState
-            icon={Clock}
-            title="No History"
-            message="Undo/redo history will appear as you work."
-          />
-        )}
+        {rightPanel === 'suggestions' && <AiSuggestionsPanel />}
+        {rightPanel === 'history' && <HistoryPanel />}
       </div>
     </aside>
+  )
+}
+
+function CompactValidation({ validation, onOpenFull }) {
+  const { valid, score, errors, warnings } = validation
+  const scoreColor = score >= 80 ? 'text-success' : score >= 50 ? 'text-warning' : 'text-error'
+
+  return (
+    <div className="space-y-3">
+      <div className="bg-elevated rounded-xl border border-edge p-4">
+        <div className="flex items-center justify-between mb-2">
+          <div className="flex items-center gap-2">
+            {valid
+              ? <CheckCircle2 size={14} className="text-success" />
+              : <XCircle      size={14} className="text-error"   />}
+            <span className="text-xs font-semibold text-ink">
+              {valid ? 'Looks good' : 'Issues found'}
+            </span>
+          </div>
+          <span className={`text-2xl font-bold font-mono tabular-nums ${scoreColor}`}>
+            {score}
+          </span>
+        </div>
+        <div className="flex items-center gap-3 text-[11px] text-muted">
+          <span><span className="text-error font-mono">{errors.length}</span> errors</span>
+          <span><span className="text-warning font-mono">{warnings.length}</span> warnings</span>
+        </div>
+      </div>
+
+      <button
+        onClick={onOpenFull}
+        className="w-full text-xs text-center py-2 rounded-lg bg-card border border-edge text-muted hover:text-ink hover:border-border transition-colors cursor-pointer"
+      >
+        Open full validation report →
+      </button>
+    </div>
   )
 }
 
