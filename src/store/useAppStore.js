@@ -79,6 +79,11 @@ const useAppStore = create(
 
       canUndo: () => get().historyIndex > 0,
       canRedo: () => get().historyIndex < get().history.length - 1,
+      goToHistoryIndex: (idx) => {
+        const { history } = get()
+        if (idx < 0 || idx >= history.length) return
+        set({ historyIndex: idx, currentJson: history[idx] })
+      },
 
       // ─── Prompt History ───────────────────────────────────────────
       promptHistory: [],

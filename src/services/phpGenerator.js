@@ -75,65 +75,126 @@ endif;
 `
 }
 
-function fieldUsageLine(field) {
-  const name  = field.name || 'field_name'
-  const label = field.label || name
+function layoutSubFields(field) {
+  if (field.type !== 'flexible_content') return null
+  return field.layouts
+    ? (Array.isArray(field.layouts) ? field.layouts : Object.values(field.layouts))
+    : []
+}
 
-  switch (field.type) {
-    case 'repeater':
-      return `// ${label}
-if ( have_rows('${name}') ) :
-    while ( have_rows('${name}') ) : the_row();
-        // Sub fields: ${(field.sub_fields || []).map((sf) => `get_sub_field('${sf.name}')`).join(', ') || '—'}
-    endwhile;
-endif;`
+/**
+ * Builds an indented "ACF sub-fields:" doc-block tree, mirroring the
+ * header comment style used in hand-written block templates (nested
+ * repeaters/sub-groups indented under their parent).
+ */
+function fieldTreeLines(fields, depth = 0) {
+  const lines = []
+  ;(fields || []).forEach((field) => {
+    const name = field.name || 'field_name'
+    const type = field.type || 'text'
+    const pad = '  '.repeat(depth + 1)
+    lines.push(`${pad}${name}${' '.repeat(Math.max(1, 24 - pad.length - name.length))}– ${type}`)
 
-    case 'flexible_content': {
-      const layoutsArray = field.layouts
-        ? (Array.isArray(field.layouts) ? field.layouts : Object.values(field.layouts))
-        : []
-      const layoutCases = layoutsArray
-        .map((l) => `        case '${l.name}':\n            // ${l.label || l.name} layout fields\n            break;`)
-        .join('\n')
-      return `// ${label}
-if ( have_rows('${name}') ) :
-    while ( have_rows('${name}') ) : the_row();
-        switch ( get_row_layout() ) {
-${layoutCases || "        // no layouts defined"}
-        }
-    endwhile;
-endif;`
+    if (type === 'repeater' || type === 'group') {
+      lines.push(...fieldTreeLines(field.sub_fields, depth + 1))
+    } else if (type === 'flexible_content') {
+      ;(layoutSubFields(field) || []).forEach((l) => {
+        const lpad = '  '.repeat(depth + 2)
+        lines.push(`${lpad}[layout: ${l.name}]`)
+        lines.push(...fieldTreeLines(l.sub_fields, depth + 2))
+      })
     }
+  })
+  return lines
+}
 
-    case 'group':
-      return `// ${label}
-$${name} = get_field('${name}');
-// Sub fields: ${(field.sub_fields || []).map((sf) => `$${name}['${sf.name}']`).join(', ') || '—'}`
+const IND = '    '
 
-    case 'true_false':
-      return `// ${label}
-if ( get_field('${name}') ) {
-    // ...
-}`
+/**
+ * Recursively renders real, nested have_rows()/the_row() usage code for a
+ * list of fields — same pattern as a hand-written block template: get_field
+ * at the top level, get_sub_field once inside a row loop, all the way down.
+ *
+ * @param {Array}  fields    - fields at this level
+ * @param {number} depth     - current indent depth
+ * @param {'get_field'|'get_sub_field'} accessor - how simple values are read at this depth
+ */
+function usageForFields(fields, depth, accessor) {
+  const pad = IND.repeat(depth)
 
-    case 'image':
-    case 'gallery':
-      return `// ${label} — returns array by default (id/url/alt/sizes)
-$${name} = get_field('${name}');`
+  return (fields || [])
+    .map((field) => {
+      const name  = field.name || 'field_name'
+      const label = field.label || name
 
-    case 'relationship':
-    case 'post_object':
-      return `// ${label} — returns WP_Post object(s)
-$${name} = get_field('${name}');`
+      switch (field.type) {
+        case 'repeater': {
+          const inner = usageForFields(field.sub_fields, depth + 2, 'get_sub_field')
+          return `${pad}// ${label}
+${pad}if ( have_rows('${name}') ) :
+${pad}${IND}while ( have_rows('${name}') ) : the_row();
 
-    default:
-      return `$${name} = get_field('${name}'); // ${label}`
-  }
+${inner || `${pad}${IND}${IND}// sub-field reads go here`}
+
+${pad}${IND}endwhile;
+${pad}endif;`
+        }
+
+        case 'flexible_content': {
+          const layoutsArray = layoutSubFields(field) || []
+          const layoutCases = layoutsArray
+            .map((l) => {
+              const layoutInner = usageForFields(l.sub_fields, depth + 4, 'get_sub_field')
+              return `${pad}${IND}${IND}case '${l.name}':
+${layoutInner || `${pad}${IND}${IND}${IND}// ${l.label || l.name} layout fields`}
+${pad}${IND}${IND}${IND}break;`
+            })
+            .join('\n\n')
+          return `${pad}// ${label}
+${pad}if ( have_rows('${name}') ) :
+${pad}${IND}while ( have_rows('${name}') ) : the_row();
+${pad}${IND}${IND}switch ( get_row_layout() ) {
+${layoutCases || `${pad}${IND}${IND}${IND}// no layouts defined`}
+${pad}${IND}${IND}}
+${pad}${IND}endwhile;
+${pad}endif;`
+        }
+
+        case 'group': {
+          const subs = (field.sub_fields || []).map((sf) => `$${name}['${sf.name}']`).join(', ') || '—'
+          return `${pad}// ${label}
+${pad}$${name} = ${accessor}('${name}');
+${pad}// Sub fields: ${subs}`
+        }
+
+        case 'true_false':
+          return `${pad}// ${label}
+${pad}if ( ${accessor}('${name}') ) {
+${pad}${IND}// ...
+${pad}}`
+
+        case 'image':
+        case 'gallery':
+          return `${pad}// ${label} — returns array by default (id/url/alt/sizes)
+${pad}$${name} = ${accessor}('${name}');`
+
+        case 'relationship':
+        case 'post_object':
+          return `${pad}// ${label} — returns WP_Post object(s)
+${pad}$${name} = ${accessor}('${name}');`
+
+        default:
+          return `${pad}$${name} = ${accessor}('${name}'); // ${label}`
+      }
+    })
+    .join('\n\n')
 }
 
 /**
  * @param {string} jsonString - raw ACF JSON (single group or array of groups)
- * @returns {string} example PHP showing how to read each top-level field
+ * @returns {string} example PHP showing how to read the fields, structured
+ *                    like a real block template: a doc-block field map up
+ *                    top, then nested have_rows()/the_row() usage below.
  */
 export function generateUsageSnippet(jsonString) {
   let parsed
@@ -148,5 +209,17 @@ export function generateUsageSnippet(jsonString) {
 
   if (fields.length === 0) return '// No fields to display.'
 
-  return fields.map(fieldUsageLine).join('\n\n')
+  const title = groups[0]?.title || 'ACF Field Group'
+  const treeLines = fieldTreeLines(fields)
+
+  const header = `/**
+ * ${title} — usage example
+ *
+ * ACF sub-fields:
+${treeLines.map((l) => ` *   ${l}`).join('\n')}
+ */
+
+`
+
+  return header + usageForFields(fields, 0, 'get_field')
 }

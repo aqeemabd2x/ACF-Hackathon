@@ -2,26 +2,26 @@
 
 @theme {
   /* ── Backgrounds ──────────────────────────────── */
-  --color-base:     #07070f;
-  --color-surface:  #0d0d1e;
-  --color-elevated: #131328;
-  --color-card:     #19192e;
+  --color-base:     #0a0708;
+  --color-surface:  #130b0d;
+  --color-elevated: #1c1114;
+  --color-card:     #241619;
 
   /* ── Borders ──────────────────────────────────── */
-  --color-edge:   #1d1d38;
-  --color-border: #2a2a4a;
-  --color-bright: #3a3a60;
+  --color-edge:   #2a1518;
+  --color-border: #3d2226;
+  --color-bright: #55272c;
 
   /* ── Text ─────────────────────────────────────── */
-  --color-ink:   #dde3f0;
-  --color-muted: #7d8a9e;
-  --color-dim:   #44496a;
+  --color-ink:   #f0dfe0;
+  --color-muted: #a08a8c;
+  --color-dim:   #6a4448;
 
-  /* ── Accent (purple) ──────────────────────────── */
-  --color-accent:       #7c3aed;
-  --color-accent-hover: #6d28d9;
-  --color-accent-light: #a78bfa;
-  --color-accent-dim:   #1e1040;
+  /* ── Accent (red) ──────────────────────────────── */
+  --color-accent:       #e11d2e;
+  --color-accent-hover: #c81625;
+  --color-accent-light: #ff5b62;
+  --color-accent-dim:   #3a0f14;
 
   /* ── Status ───────────────────────────────────── */
   --color-success: #10b981;
@@ -59,15 +59,23 @@ body {
   background: transparent;
 }
 ::-webkit-scrollbar-thumb {
-  background: #2a2a4a;
+  background: #3d2226;
   border-radius: 10px;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: #3a3a60;
+  background: #55272c;
 }
 
 /* ── Text selection ───────────────────────────────── */
 ::selection {
-  background: rgba(124, 58, 237, 0.3);
+  background: rgba(225, 29, 46, 0.35);
   color: #fff;
+}
+
+/* ── Mobile viewport guard ────────────────────────── */
+@media (max-width: 1023px) {
+  html,
+  body {
+    overflow: hidden;
+  }
 }
