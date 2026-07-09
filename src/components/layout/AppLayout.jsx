@@ -5,6 +5,7 @@ import useUndoRedoShortcuts from '../../hooks/useUndoRedoShortcuts'
 import Dashboard from '../../pages/Dashboard'
 import CreateACF from '../../pages/CreateACF'
 import ImportJSON from '../../pages/ImportJSON'
+import ExportJSON from '../../pages/ExportJSON'
 import MergeJSON from '../../pages/MergeJSON'
 import Validation from '../../pages/Validation'
 import Settings from '../../pages/Settings'
@@ -16,13 +17,7 @@ function renderPage(page) {
     case 'import-json': return <ImportJSON />
     case 'merge-json':  return <MergeJSON />
     case 'settings':    return <Settings />
-    case 'export-json': return (
-      <PlaceholderPage
-        title="Export JSON"
-        description="Download your ACF JSON in pretty or minified format, or export as PHP."
-        comingSoon
-      />
-    )
+    case 'export-json': return <ExportJSON />
     case 'validation': return <Validation />
     default: return <Dashboard />
   }
