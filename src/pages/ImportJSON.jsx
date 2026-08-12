@@ -1,41 +1,120 @@
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useRef, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Upload, ArrowRight, CheckCircle2 } from 'lucide-react'
+import { Upload, ArrowRight, CheckCircle2, Sparkles } from 'lucide-react'
 import { toast } from 'react-hot-toast'
 import useAppStore from '../store/useAppStore'
 import DropZone from '../components/json/DropZone'
 import ValidationReport from '../components/json/ValidationReport'
-import { validateACFJson } from '../services/acfValidator'
+import { validateACF as validateACFWithAI } from '../services/gemini'
 
 const TABS = [
   { id: 'upload', label: '📂  Upload File' },
   { id: 'paste',  label: '📋  Paste JSON'  },
 ]
 
+const PASTE_DEBOUNCE_MS = 700
+
+// Count groups/fields purely for the stats card — no type/rule checking here,
+// that part is delegated entirely to the AI scan below.
+function countStats(raw) {
+  const groups = Array.isArray(raw) ? raw : [raw]
+  let fields = 0
+  const walk = (arr) => {
+    if (!Array.isArray(arr)) return
+    for (const f of arr) {
+      fields += 1
+      if (Array.isArray(f.sub_fields)) walk(f.sub_fields)
+      if (f.layouts) {
+        const layouts = Array.isArray(f.layouts) ? f.layouts : Object.values(f.layouts)
+        for (const l of layouts) walk(l.sub_fields || [])
+      }
+    }
+  }
+  for (const g of groups) walk(g.fields || [])
+  return { groups: groups.length, fields }
+}
+
+// Gemini only returns { score, errors, warnings, suggestions } — normalize
+// into the shape ValidationReport expects (same pattern as Validation.jsx).
+function normalizeAIResult(aiResult, stats) {
+  const errors   = aiResult.errors   || []
+  const warnings = aiResult.warnings || []
+  return {
+    valid:       errors.length === 0,
+    score:       typeof aiResult.score === 'number' ? aiResult.score : 0,
+    errors,
+    warnings,
+    suggestions: aiResult.suggestions || [],
+    stats,
+  }
+}
+
 export default function ImportJSON() {
-  const [activeTab,  setActiveTab]  = useState('upload')
-  const [rawJson,    setRawJson]    = useState('')
-  const [pasteValue, setPasteValue] = useState('')
-  const [validation, setValidation] = useState(null)
-  const [loaded,     setLoaded]     = useState(false)
+  const [activeTab,   setActiveTab]   = useState('upload')
+  const [rawJson,     setRawJson]     = useState('')
+  const [pasteValue,  setPasteValue]  = useState('')
+  const [validation,  setValidation]  = useState(null)
+  const [isValidating, setValidating] = useState(false)
+  const [validationError, setValidationError] = useState(null)
+  const [loaded,      setLoaded]      = useState(false)
 
   const { setCurrentJson, setCurrentPage } = useAppStore()
+  const debounceRef = useRef(null)
+
+  useEffect(() => () => clearTimeout(debounceRef.current), [])
+
+  const runAIValidation = useCallback(async (json) => {
+    let parsed
+    try {
+      parsed = JSON.parse(json)
+    } catch (e) {
+      setValidation({
+        valid: false,
+        score: 0,
+        errors: [{ field: null, message: `Invalid JSON syntax: ${e.message}` }],
+        warnings: [],
+        suggestions: [],
+        stats: { groups: 0, fields: 0 },
+      })
+      setValidationError(null)
+      return
+    }
+
+    const stats = countStats(parsed)
+    setValidating(true)
+    setValidationError(null)
+    try {
+      const aiResult = await validateACFWithAI(json)
+      setValidation(normalizeAIResult(aiResult, stats))
+    } catch (err) {
+      setValidation(null)
+      setValidationError(err.message || 'AI validation failed')
+    } finally {
+      setValidating(false)
+    }
+  }, [])
 
   const handleJson = useCallback((json) => {
     setRawJson(json)
-    setValidation(validateACFJson(json))
     setLoaded(false)
-  }, [])
+    runAIValidation(json)
+  }, [runAIValidation])
 
   const handlePasteChange = (e) => {
     const val = e.target.value
     setPasteValue(val)
-    if (val.trim()) {
-      handleJson(val)
-    } else {
+    setRawJson(val)
+    setLoaded(false)
+    clearTimeout(debounceRef.current)
+
+    if (!val.trim()) {
       setValidation(null)
-      setRawJson('')
+      setValidationError(null)
+      setValidating(false)
+      return
     }
+
+    debounceRef.current = setTimeout(() => runAIValidation(val), PASTE_DEBOUNCE_MS)
   }
 
   const handleLoad = () => {
@@ -121,6 +200,19 @@ export default function ImportJSON() {
           </AnimatePresence>
 
           {/* Action buttons */}
+          {isValidating && !validation && (
+            <div className="flex items-center gap-2 w-full py-2.5 rounded-lg bg-elevated border border-edge px-4 shrink-0">
+              <div className="w-3.5 h-3.5 border-2 border-accent/20 border-t-accent rounded-full animate-spin" />
+              <span className="text-xs text-muted">Validating with AI…</span>
+            </div>
+          )}
+
+          {validationError && !isValidating && (
+            <div className="text-xs text-error bg-error/10 border border-error/20 rounded-lg p-3 shrink-0">
+              {validationError}
+            </div>
+          )}
+
           {validation && (
             <motion.div
               initial={{ opacity: 0, y: 8 }}
@@ -135,9 +227,9 @@ export default function ImportJSON() {
               ) : (
                 <button
                   onClick={handleLoad}
-                  disabled={!validation.valid}
+                  disabled={!validation.valid || isValidating}
                   className={`w-full py-2.5 rounded-lg text-sm font-medium transition-colors cursor-pointer ${
-                    validation.valid
+                    validation.valid && !isValidating
                       ? 'bg-accent hover:bg-accent-hover text-white'
                       : 'bg-elevated text-dim border border-edge cursor-not-allowed'
                   }`}
@@ -169,8 +261,25 @@ export default function ImportJSON() {
                 initial={{ opacity: 0, y: 12 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0 }}
+                className="relative"
               >
+                {isValidating && (
+                  <div className="absolute top-0 right-0 flex items-center gap-1.5 text-[10px] text-dim">
+                    <div className="w-3 h-3 border-2 border-accent/20 border-t-accent rounded-full animate-spin" />
+                    Re-scanning…
+                  </div>
+                )}
                 <ValidationReport validation={validation} />
+              </motion.div>
+            ) : isValidating ? (
+              <motion.div
+                key="scanning"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                className="flex flex-col items-center justify-center h-full min-h-64 text-center gap-3"
+              >
+                <div className="w-8 h-8 border-2 border-accent/20 border-t-accent rounded-full animate-spin" />
+                <div className="text-sm text-muted">Gemini is analyzing your ACF JSON…</div>
               </motion.div>
             ) : (
               <motion.div
@@ -188,8 +297,9 @@ export default function ImportJSON() {
                     Upload a file or paste JSON on the left to get started.
                   </div>
                 </div>
-                <div className="text-xs text-dim border border-edge rounded-lg px-4 py-2 max-w-xs leading-relaxed">
-                  Checks for duplicate keys, invalid field types, missing location rules, broken nesting, and more.
+                <div className="text-xs text-dim border border-edge rounded-lg px-4 py-2 max-w-xs leading-relaxed flex items-center gap-2">
+                  <Sparkles size={12} className="text-accent-light shrink-0" />
+                  Validated by Gemini — checks structure, field types, relationships & compatibility.
                 </div>
               </motion.div>
             )}
