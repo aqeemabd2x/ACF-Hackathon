@@ -115,7 +115,7 @@ export default function Settings() {
             </div>
             <div className="flex justify-between">
               <span>AI Model</span>
-              <span className="text-ink font-mono">gemini-2.5-flash</span>
+              <span className="text-ink font-mono">gemini-3.6-flash</span>
             </div>
           </div>
         </section>

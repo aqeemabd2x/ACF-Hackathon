@@ -1,6 +1,6 @@
 import { GoogleGenerativeAI } from '@google/generative-ai'
 
-const MODEL = 'gemini-2.5-flash'
+const MODEL = 'gemini-3.6-flash'
 
 const BASE_INSTRUCTION = `You are an expert WordPress ACF (Advanced Custom Fields) JSON specialist.
 
@@ -30,7 +30,7 @@ function parseApiError(error) {
   }
 
   if (msg.includes('404') || msg.toLowerCase().includes('not found')) {
-    return new Error('Gemini model not available. Check that your API key is valid and active at https://aistudio.google.com.')
+    return new Error(msg)
   }
 
   if (msg.includes('401') || msg.includes('403')) {
