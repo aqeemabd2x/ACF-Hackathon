@@ -83,7 +83,7 @@ export default function Settings() {
             <div className="flex items-center gap-3 px-3 py-2.5 rounded-lg bg-card border border-edge">
               <Cpu size={14} className="text-accent-light shrink-0" />
               <div className="min-w-0">
-                <div className="text-xs font-medium text-ink">Gemini 2.5 Flash</div>
+                <div className="text-xs font-medium text-ink">Gemini 3.6 Flash</div>
                 <div className="text-[10px] text-dim">Model used for all AI operations</div>
               </div>
               <span className="ml-auto text-[9px] px-1.5 py-0.5 rounded bg-success/15 text-success border border-success/20 shrink-0">

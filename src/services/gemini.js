@@ -30,7 +30,7 @@ function parseApiError(error) {
   }
 
   if (msg.includes('404') || msg.toLowerCase().includes('not found')) {
-    return new Error(msg)
+    return new Error('Gemini model not available. Check that your API key is valid and active at https://aistudio.google.com.')
   }
 
   if (msg.includes('401') || msg.includes('403')) {
