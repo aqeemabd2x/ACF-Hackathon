@@ -58,7 +58,7 @@ export default function ImportJSON() {
   const [validationError, setValidationError] = useState(null)
   const [loaded,      setLoaded]      = useState(false)
 
-  const { setCurrentJson, setCurrentPage } = useAppStore()
+  const { setCurrentJson, setCurrentPage, setAIValidation } = useAppStore()
   const debounceRef = useRef(null)
 
   useEffect(() => () => clearTimeout(debounceRef.current), [])
@@ -86,13 +86,16 @@ export default function ImportJSON() {
     try {
       const aiResult = await validateACFWithAI(json)
       setValidation(normalizeAIResult(aiResult, stats))
+      // Cache the raw AI result so the Validation page shows this same scan
+      // once this JSON is loaded into the workspace, instead of re-scanning.
+      setAIValidation(json, aiResult)
     } catch (err) {
       setValidation(null)
       setValidationError(err.message || 'AI validation failed')
     } finally {
       setValidating(false)
     }
-  }, [])
+  }, [setAIValidation])
 
   const handleJson = useCallback((json) => {
     setRawJson(json)

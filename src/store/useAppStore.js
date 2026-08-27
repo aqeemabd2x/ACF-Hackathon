@@ -98,6 +98,19 @@ const useAppStore = create(
 
       clearPromptHistory: () => set({ promptHistory: [] }),
 
+      // ─── AI Validation cache ────────────────────────────────────────
+      // Shared between Import JSON and the Validation page so a scan run in
+      // one place shows up in the other instead of requiring a re-scan.
+      // Keyed by the exact json string it was run against — a mismatch
+      // (edited/different JSON) simply means the cache doesn't apply.
+      aiValidation: null, // { json, result }
+      setAIValidation: (json, result) => set({ aiValidation: { json, result } }),
+      clearAIValidation: () => set({ aiValidation: null }),
+
+      // ─── Design-to-Code (Image → ACF/PHP/CSS) ───────────────────────
+      currentDesignResult: null,
+      setCurrentDesignResult: (result) => set({ currentDesignResult: result }),
+
       // ─── Right Panel ──────────────────────────────────────────────
       rightPanel: 'inspector',
       setRightPanel: (panel) => set({ rightPanel: panel }),
@@ -120,6 +133,8 @@ const useAppStore = create(
         promptHistory: s.promptHistory,
         geminiApiKey: s.geminiApiKey,
         currentJson: s.currentJson,
+        currentDesignResult: s.currentDesignResult,
+        aiValidation: s.aiValidation,
       }),
     }
   )

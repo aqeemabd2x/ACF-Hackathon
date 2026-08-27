@@ -114,7 +114,7 @@ export default function Dashboard() {
       </motion.div>
 
       {/* Recent Projects */}
-      <motion.div
+      {/* <motion.div
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         transition={{ delay: 0.35 }}
@@ -163,7 +163,7 @@ export default function Dashboard() {
             ))}
           </div>
         )}
-      </motion.div>
+      </motion.div> */}
     </div>
   )
 }

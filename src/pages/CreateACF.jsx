@@ -1,18 +1,32 @@
 import { useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Sparkles, History, ChevronRight, RotateCcw, Trash2 } from 'lucide-react'
+import { Sparkles, History, RotateCcw, Trash2, MessageSquareText, ImageIcon } from 'lucide-react'
 import { toast } from 'react-hot-toast'
 import useAppStore from '../store/useAppStore'
-import { generateACF } from '../services/gemini'
+import { generateACF, generateDesignToCode } from '../services/gemini'
 import PromptInput from '../components/ai/PromptInput'
 import GeneratedResult from '../components/ai/GeneratedResult'
+import DesignImportPanel from '../components/ai/DesignImportPanel'
+import GeneratedComponentResult from '../components/ai/GeneratedComponentResult'
+
+const MODES = [
+  { id: 'prompt', label: 'From Prompt', icon: MessageSquareText },
+  { id: 'image',  label: 'From Design Image', icon: ImageIcon },
+]
 
 export default function CreateACF() {
-  const { addPromptHistory, setCurrentJson, currentJson, promptHistory, clearPromptHistory } = useAppStore()
+  const {
+    addPromptHistory, setCurrentJson, currentJson, promptHistory, clearPromptHistory,
+    currentDesignResult, setCurrentDesignResult,
+  } = useAppStore()
 
+  const [mode, setMode]               = useState('prompt')
   const [result, setResult]           = useState(() => currentJson)
   const [isGenerating, setGenerating] = useState(false)
   const [showHistory, setShowHistory] = useState(false)
+
+  const [designResult, setDesignResult]           = useState(() => currentDesignResult)
+  const [isGeneratingDesign, setGeneratingDesign] = useState(false)
 
   const handleGenerate = async (prompt) => {
     setGenerating(true)
@@ -34,6 +48,26 @@ export default function CreateACF() {
     setCurrentJson(newJson)
   }
 
+  const handleGenerateDesign = async ({ base64Data, mimeType, notes }) => {
+    setGeneratingDesign(true)
+    try {
+      const bundle = await generateDesignToCode({ base64Data, mimeType, notes })
+      const serialized = { ...bundle, acf: JSON.stringify(bundle.acf, null, 2) }
+      setDesignResult(serialized)
+      setCurrentDesignResult(serialized)
+      toast.success('Generated ACF + PHP + CSS from design')
+    } catch (err) {
+      toast.error(err.message || 'Generation failed')
+    } finally {
+      setGeneratingDesign(false)
+    }
+  }
+
+  const handleDesignResultEdit = (updated) => {
+    setDesignResult(updated)
+    setCurrentDesignResult(updated)
+  }
+
   const handleRerun = (entry) => {
     setShowHistory(false)
     handleGenerate(entry.prompt)
@@ -50,86 +84,169 @@ export default function CreateACF() {
           <div>
             <h1 className="text-sm font-semibold text-ink leading-none">AI ACF Generator</h1>
             <p className="text-[10px] text-dim mt-0.5">
-              Describe your fields — Gemini generates valid ACF JSON
+              {mode === 'prompt'
+                ? 'Describe your fields — Gemini generates valid ACF JSON'
+                : 'Upload a design screenshot — Gemini generates ACF + PHP + CSS'}
             </p>
           </div>
         </div>
 
-        <button
-          onClick={() => setShowHistory(!showHistory)}
-          className={`flex items-center gap-2 text-xs px-3 py-1.5 rounded-lg border transition-colors cursor-pointer ${
-            showHistory
-              ? 'bg-accent-dim border-accent/30 text-accent-light'
-              : 'bg-elevated border-edge text-muted hover:text-ink hover:border-border'
-          }`}
-        >
-          <History size={13} />
-          History
-          {promptHistory.length > 0 && (
-            <span className="bg-accent/30 text-accent-light text-[9px] px-1.5 py-0.5 rounded-full">
-              {promptHistory.length}
-            </span>
+        <div className="flex items-center gap-3">
+          {/* Mode toggle */}
+          <div className="flex items-center gap-1 rounded-lg border border-edge bg-elevated p-1">
+            {MODES.map((m) => {
+              const Icon = m.icon
+              const active = mode === m.id
+              return (
+                <button
+                  key={m.id}
+                  onClick={() => setMode(m.id)}
+                  className={`flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-md transition-colors cursor-pointer ${
+                    active
+                      ? 'bg-accent-dim text-accent-light'
+                      : 'text-muted hover:text-ink'
+                  }`}
+                >
+                  <Icon size={12} />
+                  {m.label}
+                </button>
+              )
+            })}
+          </div>
+
+          {mode === 'prompt' && (
+            <button
+              onClick={() => setShowHistory(!showHistory)}
+              className={`flex items-center gap-2 text-xs px-3 py-1.5 rounded-lg border transition-colors cursor-pointer ${
+                showHistory
+                  ? 'bg-accent-dim border-accent/30 text-accent-light'
+                  : 'bg-elevated border-edge text-muted hover:text-ink hover:border-border'
+              }`}
+            >
+              <History size={13} />
+              History
+              {promptHistory.length > 0 && (
+                <span className="bg-accent/30 text-accent-light text-[9px] px-1.5 py-0.5 rounded-full">
+                  {promptHistory.length}
+                </span>
+              )}
+            </button>
           )}
-        </button>
+        </div>
       </div>
 
       {/* Body */}
       <div className="flex-1 overflow-hidden flex min-h-0">
         {/* Main */}
         <div className="flex-1 flex flex-col overflow-hidden p-5 gap-4 min-w-0">
-          <PromptInput onGenerate={handleGenerate} isLoading={isGenerating} />
+          {mode === 'prompt' ? (
+            <>
+              <PromptInput onGenerate={handleGenerate} isLoading={isGenerating} />
 
-          <AnimatePresence mode="wait">
-            {isGenerating && !result && (
-              <motion.div
-                key="loading"
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                className="flex-1 flex items-center justify-center"
-              >
-                <div className="flex flex-col items-center gap-4">
-                  <div className="w-10 h-10 border-2 border-accent/20 border-t-accent rounded-full animate-spin" />
-                  <div className="text-sm text-muted">Generating ACF JSON with Gemini…</div>
-                </div>
-              </motion.div>
-            )}
+              <AnimatePresence mode="wait">
+                {isGenerating && !result && (
+                  <motion.div
+                    key="loading"
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                    className="flex-1 flex items-center justify-center"
+                  >
+                    <div className="flex flex-col items-center gap-4">
+                      <div className="w-10 h-10 border-2 border-accent/20 border-t-accent rounded-full animate-spin" />
+                      <div className="text-sm text-muted">Generating ACF JSON with Gemini…</div>
+                    </div>
+                  </motion.div>
+                )}
 
-            {result && (
-              <motion.div
-                key="result"
-                initial={{ opacity: 0, y: 16 }}
-                animate={{ opacity: 1, y: 0 }}
-                className="flex-1 min-h-0"
-              >
-                <GeneratedResult json={result} onEdit={handleResultEdit} />
-              </motion.div>
-            )}
+                {result && (
+                  <motion.div
+                    key="result"
+                    initial={{ opacity: 0, y: 16 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="flex-1 min-h-0"
+                  >
+                    <GeneratedResult json={result} onEdit={handleResultEdit} />
+                  </motion.div>
+                )}
 
-            {!result && !isGenerating && (
-              <motion.div
-                key="empty"
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                className="flex-1 flex items-center justify-center"
-              >
-                <div className="text-center space-y-3">
-                  <div className="w-14 h-14 rounded-2xl bg-elevated border border-edge flex items-center justify-center mx-auto">
-                    <Sparkles size={24} className="text-dim" />
-                  </div>
-                  <div className="text-sm font-medium text-muted">No JSON generated yet</div>
-                  <div className="text-xs text-dim">
-                    Enter a prompt above and click Generate, or pick an example.
-                  </div>
-                </div>
-              </motion.div>
-            )}
-          </AnimatePresence>
+                {!result && !isGenerating && (
+                  <motion.div
+                    key="empty"
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    className="flex-1 flex items-center justify-center"
+                  >
+                    <div className="text-center space-y-3">
+                      <div className="w-14 h-14 rounded-2xl bg-elevated border border-edge flex items-center justify-center mx-auto">
+                        <Sparkles size={24} className="text-dim" />
+                      </div>
+                      <div className="text-sm font-medium text-muted">No JSON generated yet</div>
+                      <div className="text-xs text-dim">
+                        Enter a prompt above and click Generate, or pick an example.
+                      </div>
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </>
+          ) : (
+            <>
+              <DesignImportPanel onGenerate={handleGenerateDesign} isLoading={isGeneratingDesign} />
+
+              <AnimatePresence mode="wait">
+                {isGeneratingDesign && !designResult && (
+                  <motion.div
+                    key="loading-design"
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                    className="flex-1 flex items-center justify-center"
+                  >
+                    <div className="flex flex-col items-center gap-4">
+                      <div className="w-10 h-10 border-2 border-accent/20 border-t-accent rounded-full animate-spin" />
+                      <div className="text-sm text-muted">Analyzing design and generating ACF + PHP + CSS…</div>
+                    </div>
+                  </motion.div>
+                )}
+
+                {designResult && (
+                  <motion.div
+                    key="result-design"
+                    initial={{ opacity: 0, y: 16 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="flex-1 min-h-0"
+                  >
+                    <GeneratedComponentResult data={designResult} onEdit={handleDesignResultEdit} />
+                  </motion.div>
+                )}
+
+                {!designResult && !isGeneratingDesign && (
+                  <motion.div
+                    key="empty-design"
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    className="flex-1 flex items-center justify-center"
+                  >
+                    <div className="text-center space-y-3">
+                      <div className="w-14 h-14 rounded-2xl bg-elevated border border-edge flex items-center justify-center mx-auto">
+                        <ImageIcon size={24} className="text-dim" />
+                      </div>
+                      <div className="text-sm font-medium text-muted">No design analyzed yet</div>
+                      <div className="text-xs text-dim">
+                        Upload a screenshot above and click Generate from Image.
+                      </div>
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </>
+          )}
         </div>
 
         {/* History sidebar */}
         <AnimatePresence>
-          {showHistory && (
+          {showHistory && mode === 'prompt' && (
             <motion.div
               initial={{ width: 0, opacity: 0 }}
               animate={{ width: 300, opacity: 1 }}

@@ -1,5 +1,6 @@
 import LeftSidebar from './LeftSidebar'
-import RightSidebar from './RightSidebar'
+// RightSidebar still receives/holds its data (inspector/validation/suggestions/history) — just hidden from view for now.
+// import RightSidebar from './RightSidebar'
 import useAppStore from '../../store/useAppStore'
 import useUndoRedoShortcuts from '../../hooks/useUndoRedoShortcuts'
 import Dashboard from '../../pages/Dashboard'
@@ -33,7 +34,7 @@ export default function AppLayout() {
       <main className="flex-1 flex flex-col min-w-0 overflow-hidden">
         {renderPage(currentPage)}
       </main>
-      <RightSidebar />
+      {/* <RightSidebar /> */}
     </div>
   )
 }

@@ -1,30 +1,41 @@
 import { useMemo, useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { ShieldCheck, Sparkles, Zap, RotateCcw } from 'lucide-react'
+import { ShieldCheck, Sparkles, RotateCcw } from 'lucide-react'
 import { toast } from 'react-hot-toast'
 import useAppStore from '../store/useAppStore'
-import { validateACFJson } from '../services/acfValidator'
+// Structural Check tab is hidden for now — kept here in case it's re-enabled later.
+// import { validateACFJson } from '../services/acfValidator'
 import { validateACF as validateACFWithAI } from '../services/gemini'
 import ValidationReport from '../components/json/ValidationReport'
 
 const MODES = [
-  { id: 'structural', label: 'Structural Check', icon: Zap,       hint: 'Instant, rule-based, runs locally' },
+  // { id: 'structural', label: 'Structural Check', icon: Zap,       hint: 'Instant, rule-based, runs locally' },
   { id: 'ai',          label: 'AI Deep Scan',     icon: Sparkles,  hint: 'Gemini checks relationships, performance & compatibility' },
 ]
 
 export default function Validation() {
   const currentJson = useAppStore((s) => s.currentJson)
+  const aiValidationCache = useAppStore((s) => s.aiValidation)
+  const setAIValidation   = useAppStore((s) => s.setAIValidation)
 
-  const [mode, setMode]           = useState('structural')
-  const [aiResult, setAiResult]   = useState(null)
+  const [mode, setMode]           = useState('ai')
   const [isScanning, setScanning] = useState(false)
   const [aiError, setAiError]     = useState(null)
 
-  // Instant local validation — recomputed whenever the loaded JSON changes.
-  const structuralResult = useMemo(() => {
-    if (!currentJson) return null
-    return validateACFJson(currentJson)
-  }, [currentJson])
+  // Reuse a scan already run elsewhere (e.g. Import JSON) for this exact
+  // JSON instead of forcing the user to re-scan from scratch — derived
+  // straight from the store cache rather than mirrored into local state.
+  const aiResult = useMemo(() => {
+    if (aiValidationCache && aiValidationCache.json === currentJson) return aiValidationCache.result
+    return null
+  }, [currentJson, aiValidationCache])
+
+  // Structural Check tab is hidden — stop feeding it data on load. Kept
+  // commented (not deleted) so it can be switched back on later.
+  // const structuralResult = useMemo(() => {
+  //   if (!currentJson) return null
+  //   return validateACFJson(currentJson)
+  // }, [currentJson])
 
   // AI results are normalized into the same shape ValidationReport expects,
   // since Gemini only returns { score, errors, warnings, suggestions }.
@@ -38,9 +49,9 @@ export default function Validation() {
       errors,
       warnings,
       suggestions: aiResult.suggestions || [],
-      stats:       structuralResult?.stats || { groups: 0, fields: 0 },
+      stats:       { groups: 0, fields: 0 },
     }
-  }, [aiResult, structuralResult])
+  }, [aiResult])
 
   const handleScan = async () => {
     if (!currentJson) return
@@ -48,7 +59,7 @@ export default function Validation() {
     setAiError(null)
     try {
       const result = await validateACFWithAI(currentJson)
-      setAiResult(result)
+      setAIValidation(currentJson, result)
       toast.success('AI scan complete')
     } catch (err) {
       setAiError(err.message || 'AI validation failed')
@@ -105,6 +116,7 @@ export default function Validation() {
         ) : (
           <div className="max-w-3xl mx-auto space-y-4">
             <AnimatePresence mode="wait">
+              {/* Structural Check tab hidden — block kept for when it's re-enabled.
               {mode === 'structural' && (
                 <motion.div
                   key="structural"
@@ -115,6 +127,7 @@ export default function Validation() {
                   <ValidationReport validation={structuralResult} />
                 </motion.div>
               )}
+              */}
 
               {mode === 'ai' && (
                 <motion.div
