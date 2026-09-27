@@ -11,7 +11,7 @@ export default function ValidationReport({ validation, json }) {
     <div className="space-y-4">
       {/* Score card */}
       <div className="bg-elevated rounded-xl border border-edge p-5">
-        <div className="flex items-center justify-between mb-1">
+        <div className="flex items-center justify-between mb-3">
           <div className="flex items-center gap-2">
             {valid
               ? <CheckCircle2 size={16} className="text-success" />
@@ -24,17 +24,6 @@ export default function ValidationReport({ validation, json }) {
             {score}
           </span>
         </div>
-
-        {/* What this actually means, in plain terms — "valid" only checks for
-            errors, so a valid result can still carry warnings, and that's
-            easy to misread as "nothing to worry about". */}
-        <p className="text-[11px] text-dim mb-3">
-          {errors.length > 0
-            ? "Errors block this from importing cleanly — fix those first. Warnings alone won't stop it."
-            : warnings.length > 0
-              ? 'No blocking errors, so this is safe to import — but the warnings below are worth reviewing first.'
-              : null}
-        </p>
 
         {/* Bar */}
         <div className="h-1.5 bg-card rounded-full overflow-hidden mb-4">

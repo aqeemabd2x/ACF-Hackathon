@@ -272,7 +272,7 @@ export default function ImportJSON() {
                     Re-scanning…
                   </div>
                 )}
-                <ValidationReport validation={validation} />
+                <ValidationReport validation={validation} json={rawJson} />
               </motion.div>
             ) : isValidating ? (
               <motion.div

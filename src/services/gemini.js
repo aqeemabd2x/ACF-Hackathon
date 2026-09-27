@@ -157,7 +157,15 @@ export async function validateACF(json) {
     const result = await m.generateContent(
       'Analyze this ACF JSON for issues. ' +
       'Return a JSON object: { "score": 0-100, "errors": [], "warnings": [], "suggestions": [] }. ' +
-      'Each item: { "field": "key_or_null", "message": "...", "severity": "error|warning|info" }.\n\n' +
+      'Each item: { "field": "key_or_null", "message": "...", "severity": "error|warning|info", ' +
+      '"fix": "...", "insertAfter": "property_name_or_null" }.\n\n' +
+      'For "fix": when the issue is a missing or malformed property on a specific field/group, give the ' +
+      'exact, copy-pasteable JSON for that property (or properties) as it should appear inside that field/group ' +
+      'object — real syntax, correct comma, ready to paste in as-is. If the issue has no single snippet that ' +
+      'fixes it (a structural/architectural suggestion, a cross-field relationship issue, etc.), set "fix" to null.\n' +
+      'For "insertAfter": the name of the existing property inside that same field/group object that the fix ' +
+      'should be inserted directly after (e.g. "instructions", "required", "type"). Set to null when "fix" is null ' +
+      'or there is no natural anchor point.\n\n' +
       'ACF JSON:\n' + json
     )
     const text = cleanJson(result.response.text())

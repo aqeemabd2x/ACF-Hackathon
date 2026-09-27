@@ -114,7 +114,7 @@ export default function Validation() {
         {!currentJson ? (
           <EmptyState />
         ) : (
-          <div className="max-w-3xl mx-auto space-y-4">
+          <div className="max-w-5xl mx-auto space-y-4">
             <AnimatePresence mode="wait">
               {/* Structural Check tab hidden — block kept for when it's re-enabled.
               {mode === 'structural' && (
@@ -176,7 +176,7 @@ export default function Validation() {
                   )}
 
                   {aiValidation && !isScanning && (
-                    <ValidationReport validation={aiValidation} />
+                    <ValidationReport validation={aiValidation} json={currentJson} />
                   )}
 
                   {!aiResult && !isScanning && !aiError && (
