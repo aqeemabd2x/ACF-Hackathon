@@ -175,6 +175,44 @@ export async function validateACF(json) {
   }
 }
 
+/**
+ * Applies a batch of validation issues (as returned by `validateACF`) to an
+ * existing ACF JSON in a single pass, using each issue's "fix"/"insertAfter"
+ * hint where present and the model's own judgment where it's null.
+ *
+ * @param {string} json
+ * @param {Array<{ field?: string, message: string, severity?: string, fix?: string, insertAfter?: string }>} issues
+ * @returns {Promise<string>} the corrected ACF JSON
+ */
+export async function applyValidationFixes(json, issues) {
+  const m = buildModel(getApiKey())
+  try {
+    const issuesPayload = issues.map(({ field, message, severity, fix, insertAfter }) => ({
+      field:       field || null,
+      message,
+      severity:    severity || null,
+      fix:         fix || null,
+      insertAfter: insertAfter || null,
+    }))
+
+    const result = await m.generateContent(
+      'You have this ACF JSON:\n' + json + '\n\n' +
+      'Apply fixes for ALL of the following validation issues found in it:\n' +
+      JSON.stringify(issuesPayload, null, 2) + '\n\n' +
+      'For each issue, use its "fix" snippet as the exact change to make when provided (insert/merge it into ' +
+      'the field/group named in "insertAfter"/"field"). Where "fix" is null, use your own judgment to resolve ' +
+      'the issue described in "message". Do not change anything that is not related to one of these issues — ' +
+      'preserve all other existing field keys, values, ordering and structure exactly as-is.\n\n' +
+      'Return the complete corrected JSON array. Return ONLY valid JSON, nothing else.'
+    )
+    const text = cleanJson(result.response.text())
+    JSON.parse(text)
+    return text
+  } catch (err) {
+    throw parseApiError(err)
+  }
+}
+
 export async function mergeSuggestion(fileA, fileB) {
   const m = buildModel(getApiKey())
   try {

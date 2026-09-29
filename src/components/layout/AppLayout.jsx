@@ -8,18 +8,17 @@ import CreateACF from '../../pages/CreateACF'
 import ImportJSON from '../../pages/ImportJSON'
 import ExportJSON from '../../pages/ExportJSON'
 import MergeJSON from '../../pages/MergeJSON'
-import Validation from '../../pages/Validation'
 import Settings from '../../pages/Settings'
 import PlaceholderPage from '../common/PlaceholderPage'
 
 function renderPage(page) {
   switch (page) {
     case 'create-acf':  return <CreateACF />
-    case 'import-json': return <ImportJSON />
+    case 'import-json':
+    case 'validation':   return <ImportJSON />
     case 'merge-json':  return <MergeJSON />
     case 'settings':    return <Settings />
     case 'export-json': return <ExportJSON />
-    case 'validation': return <Validation />
     default: return <Dashboard />
   }
 }

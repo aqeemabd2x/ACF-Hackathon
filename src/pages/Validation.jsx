@@ -1,11 +1,13 @@
 import { useMemo, useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { ShieldCheck, Sparkles, RotateCcw } from 'lucide-react'
+import {
+  ShieldCheck, Sparkles, RotateCcw, Wrench, X, AlertTriangle, Lightbulb,
+} from 'lucide-react'
 import { toast } from 'react-hot-toast'
 import useAppStore from '../store/useAppStore'
 // Structural Check tab is hidden for now — kept here in case it's re-enabled later.
 // import { validateACFJson } from '../services/acfValidator'
-import { validateACF as validateACFWithAI } from '../services/gemini'
+import { validateACF as validateACFWithAI, applyValidationFixes } from '../services/gemini'
 import ValidationReport from '../components/json/ValidationReport'
 
 const MODES = [
@@ -15,12 +17,17 @@ const MODES = [
 
 export default function Validation() {
   const currentJson = useAppStore((s) => s.currentJson)
+  const setCurrentJson = useAppStore((s) => s.setCurrentJson)
   const aiValidationCache = useAppStore((s) => s.aiValidation)
   const setAIValidation   = useAppStore((s) => s.setAIValidation)
 
   const [mode, setMode]           = useState('ai')
   const [isScanning, setScanning] = useState(false)
   const [aiError, setAiError]     = useState(null)
+
+  const [isFixing, setFixing]                 = useState(false)
+  const [fixError, setFixError]               = useState(null)
+  const [showSuggestionPrompt, setShowSuggestionPrompt] = useState(false)
 
   // Reuse a scan already run elsewhere (e.g. Import JSON) for this exact
   // JSON instead of forcing the user to re-scan from scratch — derived
@@ -53,6 +60,10 @@ export default function Validation() {
     }
   }, [aiResult])
 
+  const requiredIssues  = aiValidation ? [...aiValidation.errors, ...aiValidation.warnings] : []
+  const suggestions     = aiValidation?.suggestions || []
+  const hasAnythingToFix = requiredIssues.length > 0 || suggestions.length > 0
+
   const handleScan = async () => {
     if (!currentJson) return
     setScanning(true)
@@ -66,6 +77,42 @@ export default function Validation() {
       toast.error(err.message || 'AI validation failed')
     } finally {
       setScanning(false)
+    }
+  }
+
+  // Runs the actual fix — called either directly (nothing to ask about) or
+  // after the user picks an option in the suggestions dialog.
+  const runFixAll = async (includeSuggestions) => {
+    if (!currentJson) return
+    setShowSuggestionPrompt(false)
+    setFixing(true)
+    setFixError(null)
+    try {
+      const issues = [...requiredIssues, ...(includeSuggestions ? suggestions : [])]
+      const fixedJson = await applyValidationFixes(currentJson, issues)
+      setCurrentJson(fixedJson)
+      toast.success(
+        includeSuggestions
+          ? 'Applied fixes and suggestions — re-scan to verify'
+          : 'Applied fixes — re-scan to verify'
+      )
+    } catch (err) {
+      setFixError(err.message || 'Could not apply fixes')
+      toast.error(err.message || 'Could not apply fixes')
+    } finally {
+      setFixing(false)
+    }
+  }
+
+  // "Fix All" only ever needs to ask the user one thing: whether the
+  // optional suggestions should be folded in too. If there's nothing
+  // optional to ask about, just go straight to fixing.
+  const handleFixAllClick = () => {
+    if (!hasAnythingToFix) return
+    if (suggestions.length > 0) {
+      setShowSuggestionPrompt(true)
+    } else {
+      runFixAll(false)
     }
   }
 
@@ -145,26 +192,52 @@ export default function Validation() {
                         Checks relationships, missing parents, performance concerns & compatibility issues
                       </div>
                     </div>
-                    <motion.button
-                      onClick={handleScan}
-                      disabled={isScanning}
-                      whileTap={{ scale: 0.97 }}
-                      className="flex items-center gap-2 px-4 py-2 rounded-lg bg-accent hover:bg-accent-hover text-white text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed transition-colors cursor-pointer shrink-0"
-                    >
-                      {isScanning ? (
-                        <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                      ) : aiResult ? (
-                        <RotateCcw size={13} />
-                      ) : (
-                        <Sparkles size={13} />
+
+                    <div className="flex items-center gap-2 shrink-0">
+                      {aiValidation && hasAnythingToFix && (
+                        <motion.button
+                          onClick={handleFixAllClick}
+                          disabled={isFixing || isScanning}
+                          whileTap={{ scale: 0.97 }}
+                          title={`Fix ${requiredIssues.length} issue${requiredIssues.length !== 1 ? 's' : ''}${suggestions.length ? ` (+${suggestions.length} suggestion${suggestions.length !== 1 ? 's' : ''} optional)` : ''}`}
+                          className="flex items-center gap-2 px-4 py-2 rounded-lg bg-success/10 hover:bg-success/20 border border-success/30 text-success text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed transition-colors cursor-pointer"
+                        >
+                          {isFixing ? (
+                            <div className="w-4 h-4 border-2 border-success/30 border-t-success rounded-full animate-spin" />
+                          ) : (
+                            <Wrench size={13} />
+                          )}
+                          {isFixing ? 'Fixing…' : 'Fix All'}
+                        </motion.button>
                       )}
-                      {isScanning ? 'Scanning…' : aiResult ? 'Re-scan' : 'Scan with AI'}
-                    </motion.button>
+
+                      <motion.button
+                        onClick={handleScan}
+                        disabled={isScanning || isFixing}
+                        whileTap={{ scale: 0.97 }}
+                        className="flex items-center gap-2 px-4 py-2 rounded-lg bg-accent hover:bg-accent-hover text-white text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed transition-colors cursor-pointer"
+                      >
+                        {isScanning ? (
+                          <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                        ) : aiResult ? (
+                          <RotateCcw size={13} />
+                        ) : (
+                          <Sparkles size={13} />
+                        )}
+                        {isScanning ? 'Scanning…' : aiResult ? 'Re-scan' : 'Scan with AI'}
+                      </motion.button>
+                    </div>
                   </div>
 
                   {aiError && !isScanning && (
                     <div className="text-xs text-error bg-error/10 border border-error/20 rounded-lg p-3">
                       {aiError}
+                    </div>
+                  )}
+
+                  {fixError && !isFixing && (
+                    <div className="text-xs text-error bg-error/10 border border-error/20 rounded-lg p-3">
+                      {fixError}
                     </div>
                   )}
 
@@ -175,11 +248,18 @@ export default function Validation() {
                     </div>
                   )}
 
-                  {aiValidation && !isScanning && (
+                  {isFixing && (
+                    <div className="flex flex-col items-center justify-center py-16 gap-3">
+                      <div className="w-8 h-8 border-2 border-success/20 border-t-success rounded-full animate-spin" />
+                      <div className="text-sm text-muted">Gemini is applying fixes…</div>
+                    </div>
+                  )}
+
+                  {aiValidation && !isScanning && !isFixing && (
                     <ValidationReport validation={aiValidation} json={currentJson} />
                   )}
 
-                  {!aiResult && !isScanning && !aiError && (
+                  {!aiResult && !isScanning && !isFixing && !aiError && (
                     <div className="text-center text-xs text-dim py-10">
                       Click "Scan with AI" to run a deep analysis with Gemini.
                     </div>
@@ -190,6 +270,14 @@ export default function Validation() {
           </div>
         )}
       </div>
+
+      <SuggestionPromptDialog
+        open={showSuggestionPrompt}
+        requiredCount={requiredIssues.length}
+        suggestionCount={suggestions.length}
+        onCancel={() => setShowSuggestionPrompt(false)}
+        onConfirm={(includeSuggestions) => runFixAll(includeSuggestions)}
+      />
     </div>
   )
 }
@@ -205,5 +293,94 @@ function EmptyState() {
         Generate, import, or merge ACF JSON first — it'll show up here for validation.
       </div>
     </div>
+  )
+}
+
+// Asks, once, whether the optional suggestions should be folded into the
+// fix along with the required errors/warnings. Only ever shown when there
+// are suggestions to ask about — plain required-only fixes skip this and
+// run immediately.
+function SuggestionPromptDialog({ open, requiredCount, suggestionCount, onCancel, onConfirm }) {
+  const hasRequired = requiredCount > 0
+
+  return (
+    <AnimatePresence>
+      {open && (
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm px-4"
+          onClick={onCancel}
+        >
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95, y: 8 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.95, y: 8 }}
+            transition={{ duration: 0.15 }}
+            onClick={(e) => e.stopPropagation()}
+            className="w-full max-w-sm rounded-xl border border-border bg-elevated shadow-2xl overflow-hidden"
+          >
+            <div className="flex items-center justify-between px-4 py-3 border-b border-edge">
+              <div className="flex items-center gap-2">
+                <Lightbulb size={14} className="text-info" />
+                <span className="text-sm font-semibold text-ink">
+                  {hasRequired ? 'Include suggestions too?' : 'Apply suggestions?'}
+                </span>
+              </div>
+              <button
+                onClick={onCancel}
+                className="text-dim hover:text-muted transition-colors cursor-pointer"
+              >
+                <X size={14} />
+              </button>
+            </div>
+
+            <div className="px-4 py-4 space-y-3">
+              {hasRequired && (
+                <div className="flex items-start gap-2 text-xs text-muted leading-relaxed">
+                  <AlertTriangle size={13} className="text-warning mt-0.5 shrink-0" />
+                  <span>
+                    {requiredCount} error{requiredCount !== 1 ? 's' : ''}/warning{requiredCount !== 1 ? 's' : ''} will
+                    be fixed either way.
+                  </span>
+                </div>
+              )}
+              <div className="flex items-start gap-2 text-xs text-muted leading-relaxed">
+                <Lightbulb size={13} className="text-info mt-0.5 shrink-0" />
+                <span>
+                  There {suggestionCount === 1 ? 'is' : 'are'} also {suggestionCount} optional suggestion
+                  {suggestionCount !== 1 ? 's' : ''} — non-blocking improvements Gemini noticed. Add
+                  {suggestionCount !== 1 ? ' them' : ' it'} into the JSON too?
+                </span>
+              </div>
+            </div>
+
+            <div className="flex flex-col gap-2 px-4 pb-4">
+              <button
+                onClick={() => onConfirm(true)}
+                className="w-full py-2 rounded-lg bg-success/10 hover:bg-success/20 border border-success/30 text-success text-sm font-medium transition-colors cursor-pointer"
+              >
+                {hasRequired ? 'Fix everything (include suggestions)' : `Apply ${suggestionCount} suggestion${suggestionCount !== 1 ? 's' : ''}`}
+              </button>
+              {hasRequired && (
+                <button
+                  onClick={() => onConfirm(false)}
+                  className="w-full py-2 rounded-lg bg-card hover:bg-elevated border border-edge text-muted hover:text-ink text-sm font-medium transition-colors cursor-pointer"
+                >
+                  Errors & warnings only
+                </button>
+              )}
+              <button
+                onClick={onCancel}
+                className="w-full py-2 rounded-lg text-dim hover:text-muted text-xs transition-colors cursor-pointer"
+              >
+                Cancel
+              </button>
+            </div>
+          </motion.div>
+        </motion.div>
+      )}
+    </AnimatePresence>
   )
 }

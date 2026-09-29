@@ -1,21 +1,17 @@
-import { useState, useCallback, useRef, useEffect } from 'react'
+import { useState, useMemo, useCallback } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Upload, ArrowRight, CheckCircle2, Sparkles } from 'lucide-react'
+import {
+  Upload, ArrowRight, CheckCircle2, Sparkles, RotateCcw, Wrench, X,
+  AlertTriangle, Lightbulb,
+} from 'lucide-react'
 import { toast } from 'react-hot-toast'
 import useAppStore from '../store/useAppStore'
 import DropZone from '../components/json/DropZone'
 import ValidationReport from '../components/json/ValidationReport'
-import { validateACF as validateACFWithAI } from '../services/gemini'
-
-const TABS = [
-  { id: 'upload', label: '📂  Upload File' },
-  { id: 'paste',  label: '📋  Paste JSON'  },
-]
-
-const PASTE_DEBOUNCE_MS = 700
+import { validateACF as validateACFWithAI, applyValidationFixes } from '../services/gemini'
 
 // Count groups/fields purely for the stats card — no type/rule checking here,
-// that part is delegated entirely to the AI scan below.
+// that part is delegated entirely to the AI scan.
 function countStats(raw) {
   const groups = Array.isArray(raw) ? raw : [raw]
   let fields = 0
@@ -30,12 +26,12 @@ function countStats(raw) {
       }
     }
   }
-  for (const g of groups) walk(g.fields || [])
+  for (const g of groups) walk(g?.fields || [])
   return { groups: groups.length, fields }
 }
 
 // Gemini only returns { score, errors, warnings, suggestions } — normalize
-// into the shape ValidationReport expects (same pattern as Validation.jsx).
+// into the shape ValidationReport expects.
 function normalizeAIResult(aiResult, stats) {
   const errors   = aiResult.errors   || []
   const warnings = aiResult.warnings || []
@@ -50,84 +46,113 @@ function normalizeAIResult(aiResult, stats) {
 }
 
 export default function ImportJSON() {
-  const [activeTab,   setActiveTab]   = useState('upload')
-  const [rawJson,     setRawJson]     = useState('')
-  const [pasteValue,  setPasteValue]  = useState('')
-  const [validation,  setValidation]  = useState(null)
-  const [isValidating, setValidating] = useState(false)
-  const [validationError, setValidationError] = useState(null)
-  const [loaded,      setLoaded]      = useState(false)
+  const currentJson       = useAppStore((s) => s.currentJson)
+  const setCurrentJson    = useAppStore((s) => s.setCurrentJson)
+  const setCurrentPage    = useAppStore((s) => s.setCurrentPage)
+  const aiValidationCache = useAppStore((s) => s.aiValidation)
+  const setAIValidation   = useAppStore((s) => s.setAIValidation)
 
-  const { setCurrentJson, setCurrentPage, setAIValidation } = useAppStore()
-  const debounceRef = useRef(null)
+  // The JSON under review. Starts from whatever is already in the workspace
+  // (so generated/merged JSON can be validated here too); uploading replaces it.
+  // It's a draft until "Load into Workspace" is pressed.
+  const [json, setJson] = useState(() => currentJson || '')
 
-  useEffect(() => () => clearTimeout(debounceRef.current), [])
+  const [isScanning, setScanning] = useState(false)
+  const [scanError, setScanError] = useState(null)
+  const [isFixing, setFixing]     = useState(false)
+  const [fixError, setFixError]   = useState(null)
+  const [showSuggestionPrompt, setShowSuggestionPrompt] = useState(false)
 
-  const runAIValidation = useCallback(async (json) => {
-    let parsed
+  const isBusy = isScanning || isFixing
+  const loaded = !!json && json === currentJson
+
+  // Syntax check + stats, derived from the draft JSON.
+  const { parsed, syntaxError } = useMemo(() => {
+    if (!json.trim()) return { parsed: null, syntaxError: null }
     try {
-      parsed = JSON.parse(json)
+      return { parsed: JSON.parse(json), syntaxError: null }
     } catch (e) {
-      setValidation({
+      return { parsed: null, syntaxError: e.message }
+    }
+  }, [json])
+
+  // Reuse a cached scan for this exact JSON (survives navigation).
+  const aiResult = useMemo(() => {
+    if (aiValidationCache && aiValidationCache.json === json) return aiValidationCache.result
+    return null
+  }, [json, aiValidationCache])
+
+  const validation = useMemo(() => {
+    if (syntaxError) {
+      return {
         valid: false,
         score: 0,
-        errors: [{ field: null, message: `Invalid JSON syntax: ${e.message}` }],
+        errors: [{ field: null, message: `Invalid JSON syntax: ${syntaxError}` }],
         warnings: [],
         suggestions: [],
         stats: { groups: 0, fields: 0 },
-      })
-      setValidationError(null)
-      return
+      }
     }
+    if (parsed && aiResult) return normalizeAIResult(aiResult, countStats(parsed))
+    return null
+  }, [syntaxError, parsed, aiResult])
 
-    const stats = countStats(parsed)
-    setValidating(true)
-    setValidationError(null)
+  const requiredIssues = validation && !syntaxError ? [...validation.errors, ...validation.warnings] : []
+  const suggestions    = validation && !syntaxError ? validation.suggestions : []
+  const canFix         = !!validation && !syntaxError && (requiredIssues.length > 0 || suggestions.length > 0)
+
+  const runScan = useCallback(async (jsonStr) => {
+    try { JSON.parse(jsonStr) } catch { return } // syntax errors are reported without an AI call
+    setScanning(true)
+    setScanError(null)
     try {
-      const aiResult = await validateACFWithAI(json)
-      setValidation(normalizeAIResult(aiResult, stats))
-      // Cache the raw AI result so the Validation page shows this same scan
-      // once this JSON is loaded into the workspace, instead of re-scanning.
-      setAIValidation(json, aiResult)
+      const result = await validateACFWithAI(jsonStr)
+      setAIValidation(jsonStr, result)
     } catch (err) {
-      setValidation(null)
-      setValidationError(err.message || 'AI validation failed')
+      setScanError(err.message || 'AI validation failed')
     } finally {
-      setValidating(false)
+      setScanning(false)
     }
   }, [setAIValidation])
 
-  const handleJson = useCallback((json) => {
-    setRawJson(json)
-    setLoaded(false)
-    runAIValidation(json)
-  }, [runAIValidation])
+  const handleUpload = useCallback((text) => {
+    setJson(text)
+    setFixError(null)
+    runScan(text)
+  }, [runScan])
 
-  const handlePasteChange = (e) => {
-    const val = e.target.value
-    setPasteValue(val)
-    setRawJson(val)
-    setLoaded(false)
-    clearTimeout(debounceRef.current)
-
-    if (!val.trim()) {
-      setValidation(null)
-      setValidationError(null)
-      setValidating(false)
-      return
+  const runFixAll = async (includeSuggestions) => {
+    setShowSuggestionPrompt(false)
+    setFixing(true)
+    setFixError(null)
+    try {
+      const issues = [...requiredIssues, ...(includeSuggestions ? suggestions : [])]
+      const fixed = await applyValidationFixes(json, issues)
+      setJson(fixed)
+      toast.success('Fixes applied — re-scanning to verify')
+      setFixing(false)
+      await runScan(fixed)
+    } catch (err) {
+      setFixError(err.message || 'Could not apply fixes')
+      toast.error(err.message || 'Could not apply fixes')
+      setFixing(false)
     }
+  }
 
-    debounceRef.current = setTimeout(() => runAIValidation(val), PASTE_DEBOUNCE_MS)
+  // Only ask about suggestions when there are some; otherwise fix straight away.
+  const handleFixAllClick = () => {
+    if (!canFix || isBusy) return
+    if (suggestions.length > 0) setShowSuggestionPrompt(true)
+    else runFixAll(false)
   }
 
   const handleLoad = () => {
-    setCurrentJson(rawJson)
-    setLoaded(true)
+    setCurrentJson(json)
     toast.success('JSON loaded into workspace')
   }
 
   const handleGoToEditor = () => {
-    setCurrentJson(rawJson)
+    setCurrentJson(json)
     setCurrentPage('create-acf')
   }
 
@@ -140,9 +165,9 @@ export default function ImportJSON() {
             <Upload size={14} className="text-info" />
           </div>
           <div>
-            <h1 className="text-sm font-semibold text-ink leading-none">Import ACF JSON</h1>
+            <h1 className="text-sm font-semibold text-ink leading-none">Import & Validate</h1>
             <p className="text-[10px] text-dim mt-0.5">
-              Upload or paste ACF JSON to validate and load it into the workspace
+              Upload ACF JSON, deep scan it with Gemini, fix issues, then load it into the workspace
             </p>
           </div>
         </div>
@@ -151,77 +176,17 @@ export default function ImportJSON() {
       {/* Body */}
       <div className="flex-1 overflow-hidden flex min-h-0">
         {/* ── Left panel ─────────────────────────────────────────── */}
-        <div className="w-[400px] shrink-0 border-r border-edge flex flex-col p-5 gap-4 overflow-y-auto">
-          {/* Tabs */}
-          <div className="flex bg-elevated rounded-lg p-1 gap-1 border border-edge shrink-0">
-            {TABS.map((tab) => (
-              <button
-                key={tab.id}
-                onClick={() => setActiveTab(tab.id)}
-                className={`flex-1 py-2 rounded-md text-xs font-medium transition-colors cursor-pointer ${
-                  activeTab === tab.id
-                    ? 'bg-card text-ink shadow-sm'
-                    : 'text-dim hover:text-muted'
-                }`}
-              >
-                {tab.label}
-              </button>
-            ))}
-          </div>
+        <div className="w-[360px] shrink-0 border-r border-edge flex flex-col p-5 gap-4 overflow-y-auto">
+          <DropZone onJson={handleUpload} />
 
-          {/* Input area */}
-          <AnimatePresence mode="wait">
-            {activeTab === 'upload' ? (
-              <motion.div
-                key="upload"
-                initial={{ opacity: 0, x: -8 }}
-                animate={{ opacity: 1, x: 0 }}
-                exit={{ opacity: 0, x: 8 }}
-                transition={{ duration: 0.15 }}
-              >
-                <DropZone onJson={handleJson} />
-              </motion.div>
-            ) : (
-              <motion.div
-                key="paste"
-                initial={{ opacity: 0, x: 8 }}
-                animate={{ opacity: 1, x: 0 }}
-                exit={{ opacity: 0, x: -8 }}
-                transition={{ duration: 0.15 }}
-                className="flex flex-col"
-              >
-                <textarea
-                  value={pasteValue}
-                  onChange={handlePasteChange}
-                  placeholder={'Paste your ACF JSON here…\n\n[\n  {\n    "key": "group_abc123",\n    "title": "My Fields",\n    "fields": […]\n  }\n]'}
-                  rows={14}
-                  spellCheck={false}
-                  className="w-full bg-elevated border border-border rounded-xl px-4 py-3 text-xs text-ink placeholder:text-dim font-mono resize-none focus:outline-none focus:border-accent transition-colors leading-relaxed"
-                />
-              </motion.div>
-            )}
-          </AnimatePresence>
-
-          {/* Action buttons */}
-          {isValidating && !validation && (
-            <div className="flex items-center gap-2 w-full py-2.5 rounded-lg bg-elevated border border-edge px-4 shrink-0">
-              <div className="w-3.5 h-3.5 border-2 border-accent/20 border-t-accent rounded-full animate-spin" />
-              <span className="text-xs text-muted">Validating with AI…</span>
-            </div>
+          {json && !loaded && !validation && !isBusy && !scanError && (
+            <p className="text-[11px] text-dim leading-relaxed">
+              Using the JSON already in your workspace. Run a scan on the right, or upload a different file.
+            </p>
           )}
 
-          {validationError && !isValidating && (
-            <div className="text-xs text-error bg-error/10 border border-error/20 rounded-lg p-3 shrink-0">
-              {validationError}
-            </div>
-          )}
-
-          {validation && (
-            <motion.div
-              initial={{ opacity: 0, y: 8 }}
-              animate={{ opacity: 1, y: 0 }}
-              className="space-y-2 shrink-0"
-            >
+          {json && (
+            <div className="space-y-2 shrink-0">
               {loaded ? (
                 <div className="flex items-center gap-2 w-full py-2.5 rounded-lg bg-success/10 border border-success/20 px-4">
                   <CheckCircle2 size={14} className="text-success" />
@@ -230,16 +195,18 @@ export default function ImportJSON() {
               ) : (
                 <button
                   onClick={handleLoad}
-                  disabled={!validation.valid || isValidating}
+                  disabled={!validation?.valid || isBusy}
                   className={`w-full py-2.5 rounded-lg text-sm font-medium transition-colors cursor-pointer ${
-                    validation.valid && !isValidating
+                    validation?.valid && !isBusy
                       ? 'bg-accent hover:bg-accent-hover text-white'
                       : 'bg-elevated text-dim border border-edge cursor-not-allowed'
                   }`}
                 >
-                  {validation.valid
-                    ? 'Load into Workspace'
-                    : `Fix ${validation.errors.length} error${validation.errors.length !== 1 ? 's' : ''} to continue`}
+                  {!validation
+                    ? 'Run a scan to continue'
+                    : validation.valid
+                      ? 'Load into Workspace'
+                      : `Fix ${validation.errors.length} error${validation.errors.length !== 1 ? 's' : ''} to continue`}
                 </button>
               )}
 
@@ -251,64 +218,208 @@ export default function ImportJSON() {
                   Open in AI Editor <ArrowRight size={11} />
                 </button>
               )}
-            </motion.div>
+            </div>
           )}
         </div>
 
         {/* ── Right panel ────────────────────────────────────────── */}
         <div className="flex-1 overflow-y-auto p-5">
-          <AnimatePresence mode="wait">
-            {validation ? (
-              <motion.div
-                key="report"
-                initial={{ opacity: 0, y: 12 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0 }}
-                className="relative"
-              >
-                {isValidating && (
-                  <div className="absolute top-0 right-0 flex items-center gap-1.5 text-[10px] text-dim">
-                    <div className="w-3 h-3 border-2 border-accent/20 border-t-accent rounded-full animate-spin" />
-                    Re-scanning…
+          {!json ? (
+            <EmptyState />
+          ) : (
+            <div className="max-w-5xl mx-auto space-y-4">
+              {/* Scan bar */}
+              <div className="bg-elevated border border-edge rounded-xl px-5 py-4 space-y-3">
+                <div className="flex items-center justify-between gap-4">
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2 text-sm font-medium text-ink">
+                      {isBusy && (
+                        <div className="w-3.5 h-3.5 border-2 border-accent/20 border-t-accent rounded-full animate-spin shrink-0" />
+                      )}
+                      {isFixing
+                        ? 'Applying fixes…'
+                        : isScanning
+                          ? 'Deep scanning with Gemini…'
+                          : 'Gemini Deep Scan'}
+                    </div>
+                    <div className="text-xs text-dim mt-0.5">
+                      {isBusy
+                        ? 'Checking relationships, missing parents, performance concerns & compatibility'
+                        : 'Checks relationships, missing parents, performance concerns & compatibility issues'}
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-2 shrink-0">
+                    {canFix && (
+                      <motion.button
+                        onClick={handleFixAllClick}
+                        disabled={isBusy}
+                        whileTap={{ scale: 0.97 }}
+                        className="flex items-center gap-2 px-4 py-2 rounded-lg bg-success/10 hover:bg-success/20 border border-success/30 text-success text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed transition-colors cursor-pointer"
+                      >
+                        <Wrench size={13} />
+                        Fix All
+                      </motion.button>
+                    )}
+
+                    <motion.button
+                      onClick={() => runScan(json)}
+                      disabled={isBusy || !!syntaxError}
+                      whileTap={{ scale: 0.97 }}
+                      className="flex items-center gap-2 px-4 py-2 rounded-lg bg-accent hover:bg-accent-hover text-white text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed transition-colors cursor-pointer"
+                    >
+                      {aiResult ? <RotateCcw size={13} /> : <Sparkles size={13} />}
+                      {aiResult ? 'Re-scan' : 'Scan with AI'}
+                    </motion.button>
+                  </div>
+                </div>
+
+                {isBusy && (
+                  <div className="h-1 rounded-full bg-accent/10 overflow-hidden">
+                    <motion.div
+                      className="h-full w-1/3 rounded-full bg-accent"
+                      animate={{ x: ['-100%', '300%'] }}
+                      transition={{ repeat: Infinity, duration: 1.2, ease: 'easeInOut' }}
+                    />
                   </div>
                 )}
-                <ValidationReport validation={validation} json={rawJson} />
-              </motion.div>
-            ) : isValidating ? (
-              <motion.div
-                key="scanning"
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                className="flex flex-col items-center justify-center h-full min-h-64 text-center gap-3"
-              >
-                <div className="w-8 h-8 border-2 border-accent/20 border-t-accent rounded-full animate-spin" />
-                <div className="text-sm text-muted">Gemini is analyzing your ACF JSON…</div>
-              </motion.div>
-            ) : (
-              <motion.div
-                key="empty"
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                className="flex flex-col items-center justify-center h-full min-h-64 text-center gap-4"
-              >
-                <div className="w-16 h-16 rounded-2xl bg-elevated border border-edge flex items-center justify-center">
-                  <Upload size={28} className="text-dim" />
+              </div>
+
+              {(scanError || fixError) && !isBusy && (
+                <div className="text-xs text-error bg-error/10 border border-error/20 rounded-lg p-3">
+                  {scanError || fixError}
                 </div>
-                <div className="space-y-1.5">
-                  <div className="text-sm font-medium text-muted">Validation results will appear here</div>
-                  <div className="text-xs text-dim">
-                    Upload a file or paste JSON on the left to get started.
+              )}
+
+              {/* Report */}
+              {validation ? (
+                <div className={`transition-opacity ${isBusy ? 'opacity-50 pointer-events-none' : ''}`}>
+                  <ValidationReport validation={validation} json={json} />
+                </div>
+              ) : isBusy ? (
+                <div className="flex flex-col items-center justify-center py-16 gap-3">
+                  <div className="w-8 h-8 border-2 border-accent/20 border-t-accent rounded-full animate-spin" />
+                  <div className="text-sm text-muted">
+                    {isFixing ? 'Gemini is applying fixes…' : 'Gemini is deep scanning your ACF JSON…'}
                   </div>
                 </div>
-                <div className="text-xs text-dim border border-edge rounded-lg px-4 py-2 max-w-xs leading-relaxed flex items-center gap-2">
-                  <Sparkles size={12} className="text-accent-light shrink-0" />
-                  Validated by Gemini — checks structure, field types, relationships & compatibility.
+              ) : !scanError ? (
+                <div className="text-center text-xs text-dim py-10">
+                  Click "Scan with AI" to run a deep analysis with Gemini.
                 </div>
-              </motion.div>
-            )}
-          </AnimatePresence>
+              ) : null}
+            </div>
+          )}
         </div>
       </div>
+
+      <SuggestionPromptDialog
+        open={showSuggestionPrompt}
+        requiredCount={requiredIssues.length}
+        suggestionCount={suggestions.length}
+        onCancel={() => setShowSuggestionPrompt(false)}
+        onConfirm={runFixAll}
+      />
     </div>
+  )
+}
+
+function EmptyState() {
+  return (
+    <div className="flex flex-col items-center justify-center h-full min-h-64 text-center gap-4">
+      <div className="w-16 h-16 rounded-2xl bg-elevated border border-edge flex items-center justify-center">
+        <Upload size={28} className="text-dim" />
+      </div>
+      <div className="space-y-1.5">
+        <div className="text-sm font-medium text-muted">Validation results will appear here</div>
+        <div className="text-xs text-dim">Upload an ACF JSON file on the left to get started.</div>
+      </div>
+      <div className="text-xs text-dim border border-edge rounded-lg px-4 py-2 max-w-xs leading-relaxed flex items-center gap-2">
+        <Sparkles size={12} className="text-accent-light shrink-0" />
+        Deep scanned by Gemini — checks structure, field types, relationships & compatibility.
+      </div>
+    </div>
+  )
+}
+
+// Asks, once, whether optional suggestions should be folded into the fix.
+function SuggestionPromptDialog({ open, requiredCount, suggestionCount, onCancel, onConfirm }) {
+  const hasRequired = requiredCount > 0
+
+  return (
+    <AnimatePresence>
+      {open && (
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm px-4"
+          onClick={onCancel}
+        >
+          <motion.div
+            initial={{ opacity: 0, scale: 0.95, y: 8 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.95, y: 8 }}
+            transition={{ duration: 0.15 }}
+            onClick={(e) => e.stopPropagation()}
+            className="w-full max-w-sm rounded-xl border border-border bg-elevated shadow-2xl overflow-hidden"
+          >
+            <div className="flex items-center justify-between px-4 py-3 border-b border-edge">
+              <div className="flex items-center gap-2">
+                <Lightbulb size={14} className="text-info" />
+                <span className="text-sm font-semibold text-ink">
+                  {hasRequired ? 'Include suggestions too?' : 'Apply suggestions?'}
+                </span>
+              </div>
+              <button onClick={onCancel} className="text-dim hover:text-muted transition-colors cursor-pointer">
+                <X size={14} />
+              </button>
+            </div>
+
+            <div className="px-4 py-4 space-y-3">
+              {hasRequired && (
+                <div className="flex items-start gap-2 text-xs text-muted leading-relaxed">
+                  <AlertTriangle size={13} className="text-warning mt-0.5 shrink-0" />
+                  <span>
+                    {requiredCount} error{requiredCount !== 1 ? 's' : ''}/warning{requiredCount !== 1 ? 's' : ''} will
+                    be fixed either way.
+                  </span>
+                </div>
+              )}
+              <div className="flex items-start gap-2 text-xs text-muted leading-relaxed">
+                <Lightbulb size={13} className="text-info mt-0.5 shrink-0" />
+                <span>
+                  There {suggestionCount === 1 ? 'is' : 'are'} also {suggestionCount} optional suggestion
+                  {suggestionCount !== 1 ? 's' : ''} — non-blocking improvements Gemini noticed. Add
+                  {suggestionCount !== 1 ? ' them' : ' it'} into the JSON too?
+                </span>
+              </div>
+            </div>
+
+            <div className="flex flex-col gap-2 px-4 pb-4">
+              <button
+                onClick={() => onConfirm(true)}
+                className="w-full py-2 rounded-lg bg-success/10 hover:bg-success/20 border border-success/30 text-success text-sm font-medium transition-colors cursor-pointer"
+              >
+                {hasRequired
+                  ? 'Fix everything (include suggestions)'
+                  : `Apply ${suggestionCount} suggestion${suggestionCount !== 1 ? 's' : ''}`}
+              </button>
+              {hasRequired && (
+                <button
+                  onClick={() => onConfirm(false)}
+                  className="w-full py-2 rounded-lg bg-card hover:bg-elevated border border-edge text-muted hover:text-ink text-sm font-medium transition-colors cursor-pointer"
+                >
+                  Errors & warnings only
+                </button>
+              )}
+              <button onClick={onCancel} className="w-full py-2 rounded-lg text-dim hover:text-muted text-xs transition-colors cursor-pointer">
+                Cancel
+              </button>
+            </div>
+          </motion.div>
+        </motion.div>
+      )}
+    </AnimatePresence>
   )
 }

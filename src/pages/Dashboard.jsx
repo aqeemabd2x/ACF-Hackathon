@@ -3,7 +3,6 @@ import {
   Sparkles,
   Upload,
   GitMerge,
-  ShieldCheck,
   ArrowRight,
   Plus,
   FolderOpen,
@@ -25,8 +24,8 @@ const QUICK_ACTIONS = [
   {
     id: 'import-json',
     icon: Upload,
-    title: 'Import JSON',
-    description: 'Upload or paste existing ACF JSON to validate, edit, and export.',
+    title: 'Import & Validate',
+    description: 'Upload ACF JSON, deep scan it with AI, auto-fix issues, and load it into the workspace.',
     accent: 'text-info',
     bg: 'bg-info/10',
     border: 'border-info/20',
@@ -41,16 +40,6 @@ const QUICK_ACTIONS = [
     bg: 'bg-success/10',
     border: 'border-success/20',
     dot: 'bg-success',
-  },
-  {
-    id: 'validation',
-    icon: ShieldCheck,
-    title: 'AI Validation',
-    description: 'Scan ACF JSON for errors, broken references, duplicates, and performance issues.',
-    accent: 'text-warning',
-    bg: 'bg-warning/10',
-    border: 'border-warning/20',
-    dot: 'bg-warning',
   },
 ]
 
