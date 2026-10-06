@@ -2,7 +2,7 @@ import { useState, useMemo, useCallback } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   Upload, ArrowRight, CheckCircle2, Sparkles, RotateCcw, Wrench, X,
-  AlertTriangle, Lightbulb,
+  AlertTriangle, Lightbulb, Info,
 } from 'lucide-react'
 import { toast } from 'react-hot-toast'
 import useAppStore from '../store/useAppStore'
@@ -69,6 +69,11 @@ export default function ImportJSON() {
   // from Create ACF) would falsely show "Loaded" before the user did anything.
   const [committed, setCommitted] = useState(false)
 
+  // True only once the user has actually dropped/picked a file in this session —
+  // lets us warn that a bare "Scan with AI" otherwise targets whatever prompt-
+  // or design-generated JSON is already sitting in the workspace.
+  const [hasUploaded, setHasUploaded] = useState(false)
+
   const isBusy = isScanning || isFixing
   const loaded = committed && json === currentJson
 
@@ -127,6 +132,7 @@ export default function ImportJSON() {
     setJson(text)
     setFixError(null)
     setCommitted(false)
+    setHasUploaded(true)
     runScan(text)
   }, [runScan])
 
@@ -192,9 +198,10 @@ export default function ImportJSON() {
         <div className="w-[360px] shrink-0 border-r border-edge flex flex-col p-5 gap-4 overflow-y-auto">
           <DropZone onJson={handleUpload} />
 
-          {json && !loaded && !validation && !isBusy && !scanError && (
+          {json && !hasUploaded && !isBusy && (
             <p className="text-[11px] text-dim leading-relaxed">
-              Using the JSON already in your workspace. Run a scan on the right, or upload a different file.
+              No file imported — this is the JSON already in your workspace (from Create ACF, a merge, or a
+              previous import). "Scan with AI" will validate that. Upload a file above to check something else.
             </p>
           )}
 
@@ -237,6 +244,19 @@ export default function ImportJSON() {
             <EmptyState />
           ) : (
             <div className="max-w-5xl mx-auto space-y-4">
+              {/* No-import notice — only the "Scan with AI" button lives here, so make it obvious
+                  up front when it would be scanning leftover workspace JSON, not an uploaded file. */}
+              {!hasUploaded && (
+                <div className="flex items-start gap-2 px-4 py-2.5 rounded-lg border border-info/20 bg-info/5">
+                  <Info size={13} className="text-info mt-0.5 shrink-0" />
+                  <div className="text-[11px] text-muted leading-relaxed">
+                    <span className="font-medium text-ink">No file imported. </span>
+                    You're viewing the JSON already in your workspace (e.g. from Create ACF or a design
+                    generation) — scanning/fixing here will act on that, not an uploaded file.
+                  </div>
+                </div>
+              )}
+
               {/* Scan bar */}
               <div className="bg-elevated border border-edge rounded-xl px-5 py-4 space-y-3">
                 <div className="flex items-center justify-between gap-4">
@@ -275,6 +295,7 @@ export default function ImportJSON() {
                       onClick={() => runScan(json)}
                       disabled={isBusy || !!syntaxError}
                       whileTap={{ scale: 0.97 }}
+                      title={!hasUploaded ? 'No file imported — this scans the JSON already in your workspace' : undefined}
                       className="flex items-center gap-2 px-4 py-2 rounded-lg bg-accent hover:bg-accent-hover text-white text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed transition-colors cursor-pointer"
                     >
                       {aiResult ? <RotateCcw size={13} /> : <Sparkles size={13} />}
