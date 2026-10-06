@@ -63,8 +63,14 @@ export default function ImportJSON() {
   const [fixError, setFixError]   = useState(null)
   const [showSuggestionPrompt, setShowSuggestionPrompt] = useState(false)
 
+  // Explicit flag for "this draft has been pushed into the workspace" — never
+  // inferred from `json === currentJson` alone, otherwise opening this page
+  // when the workspace already happens to hold the same JSON (e.g. coming
+  // from Create ACF) would falsely show "Loaded" before the user did anything.
+  const [committed, setCommitted] = useState(false)
+
   const isBusy = isScanning || isFixing
-  const loaded = !!json && json === currentJson
+  const loaded = committed && json === currentJson
 
   // Syntax check + stats, derived from the draft JSON.
   const { parsed, syntaxError } = useMemo(() => {
@@ -100,6 +106,8 @@ export default function ImportJSON() {
   const requiredIssues = validation && !syntaxError ? [...validation.errors, ...validation.warnings] : []
   const suggestions    = validation && !syntaxError ? validation.suggestions : []
   const canFix         = !!validation && !syntaxError && (requiredIssues.length > 0 || suggestions.length > 0)
+  // Only loadable once a scan has actually finished (or hit a syntax error, which blocks it outright).
+  const canLoad         = !!json && !syntaxError && !!validation && !isBusy
 
   const runScan = useCallback(async (jsonStr) => {
     try { JSON.parse(jsonStr) } catch { return } // syntax errors are reported without an AI call
@@ -118,6 +126,7 @@ export default function ImportJSON() {
   const handleUpload = useCallback((text) => {
     setJson(text)
     setFixError(null)
+    setCommitted(false)
     runScan(text)
   }, [runScan])
 
@@ -129,12 +138,15 @@ export default function ImportJSON() {
       const issues = [...requiredIssues, ...(includeSuggestions ? suggestions : [])]
       const fixed = await applyValidationFixes(json, issues)
       setJson(fixed)
+      // The fixed JSON hasn't been loaded into the workspace yet — re-scan it,
+      // which re-enables "Load into Workspace" for the user to press themselves.
+      setCommitted(false)
       toast.success('Fixes applied — re-scanning to verify')
-      setFixing(false)
       await runScan(fixed)
     } catch (err) {
       setFixError(err.message || 'Could not apply fixes')
       toast.error(err.message || 'Could not apply fixes')
+    } finally {
       setFixing(false)
     }
   }
@@ -148,6 +160,7 @@ export default function ImportJSON() {
 
   const handleLoad = () => {
     setCurrentJson(json)
+    setCommitted(true)
     toast.success('JSON loaded into workspace')
   }
 
@@ -195,18 +208,14 @@ export default function ImportJSON() {
               ) : (
                 <button
                   onClick={handleLoad}
-                  disabled={!validation?.valid || isBusy}
+                  disabled={!canLoad}
                   className={`w-full py-2.5 rounded-lg text-sm font-medium transition-colors cursor-pointer ${
-                    validation?.valid && !isBusy
+                    canLoad
                       ? 'bg-accent hover:bg-accent-hover text-white'
                       : 'bg-elevated text-dim border border-edge cursor-not-allowed'
                   }`}
                 >
-                  {!validation
-                    ? 'Run a scan to continue'
-                    : validation.valid
-                      ? 'Load into Workspace'
-                      : `Fix ${validation.errors.length} error${validation.errors.length !== 1 ? 's' : ''} to continue`}
+                  {syntaxError ? 'Fix JSON syntax to continue' : !validation ? 'Run a scan to continue' : 'Load into Workspace'}
                 </button>
               )}
 

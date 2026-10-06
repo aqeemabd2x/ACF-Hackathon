@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import {
   Download, Copy, Check, FileJson, FileCode2, Minimize2,
-  Palette, Eye, Monitor, Tablet, Smartphone, Info,
+  Palette, Eye, Monitor, Tablet, Smartphone, Info, LayoutTemplate,
 } from 'lucide-react'
 import { toast } from 'react-hot-toast'
 import { saveAs } from 'file-saver'
@@ -43,8 +43,9 @@ const BASE_MODES = [
 // Only offered when the loaded JSON is still exactly what a design-image
 // generation produced (see `hasDesign` below).
 const DESIGN_MODES = [
-  { id: 'css',     label: 'CSS',     icon: Palette },
-  { id: 'preview', label: 'Preview', icon: Eye },
+  { id: 'template', label: 'Template PHP', icon: LayoutTemplate },
+  { id: 'css',      label: 'CSS',          icon: Palette },
+  { id: 'preview',  label: 'Preview',      icon: Eye },
 ]
 
 const VIEWPORTS = [
@@ -89,7 +90,7 @@ export default function ExportJSON() {
 
   // Bounce back to a JSON tab if the design-only tab we were on stops applying.
   useEffect(() => {
-    if (!hasDesign && (mode === 'css' || mode === 'preview')) setMode('pretty')
+    if (!hasDesign && (mode === 'template' || mode === 'css' || mode === 'preview')) setMode('pretty')
   }, [hasDesign, mode])
 
   const prettyJson = useMemo(() => {
@@ -102,13 +103,20 @@ export default function ExportJSON() {
     try { return JSON.stringify(JSON.parse(currentJson)) } catch { return currentJson }
   }, [currentJson])
 
+  // Always the acf_add_local_field_group() registration code — same as the
+  // prompt-based flow — so design-based exports still get it to paste into
+  // functions.php, alongside the AI's own theme template below.
   const phpCode = useMemo(() => {
-    // Prefer the AI-authored PHP from the design generation — it matches
-    // the actual markup/classes it also generated for CSS/preview.
-    if (hasDesign && currentDesignResult?.php) return currentDesignResult.php
     if (!currentJson) return ''
     try { return generatePHP(currentJson) } catch (err) { return `// ${err.message}` }
-  }, [currentJson, hasDesign, currentDesignResult])
+  }, [currentJson])
+
+  // The AI-authored theme template from the design generation — matches the
+  // actual markup/classes it also generated for CSS/preview.
+  const templateCode = useMemo(
+    () => (hasDesign ? (currentDesignResult?.php || '') : ''),
+    [hasDesign, currentDesignResult]
+  )
 
   const cssCode = useMemo(
     () => (hasDesign ? (currentDesignResult?.css || '') : ''),
@@ -131,16 +139,20 @@ export default function ExportJSON() {
     mode === 'pretty'   ? prettyJson   :
     mode === 'minified' ? minifiedJson :
     mode === 'php'      ? phpCode      :
+    mode === 'template' ? templateCode :
     mode === 'css'      ? cssCode      : ''
 
   const activeLanguage =
-    mode === 'php' ? 'php' :
+    mode === 'php' || mode === 'template' ? 'php' :
     mode === 'css' ? 'css' : 'json'
 
   const handleEditorMount = useCallback((editor, monaco) => {
     monaco.editor.defineTheme('acf-dark', ACF_DARK_THEME)
     monaco.editor.setTheme('acf-dark')
   }, [])
+
+  const modeLabelFor = (m) =>
+    m === 'php' ? 'PHP' : m === 'template' ? 'Template PHP' : m === 'css' ? 'CSS' : 'JSON'
 
   const handleCopy = (text, label) => {
     navigator.clipboard.writeText(text).then(() => {
@@ -160,6 +172,9 @@ export default function ExportJSON() {
     } else if (mode === 'php') {
       saveAs(new Blob([phpCode], { type: 'application/x-httpd-php' }), `${filename}.php`)
       toast.success(`Downloaded ${filename}.php`)
+    } else if (mode === 'template') {
+      saveAs(new Blob([templateCode], { type: 'application/x-httpd-php' }), `${filename}-template.php`)
+      toast.success(`Downloaded ${filename}-template.php`)
     } else if (mode === 'css') {
       saveAs(new Blob([cssCode], { type: 'text/css' }), `${filename}.css`)
       toast.success(`Downloaded ${filename}.css`)
@@ -243,6 +258,7 @@ export default function ExportJSON() {
                   {mode === 'pretty'   && `${filename}.json`}
                   {mode === 'minified' && `${filename}.min.json`}
                   {mode === 'php'      && `${filename}.php`}
+                  {mode === 'template' && `${filename}-template.php`}
                   {mode === 'css'      && `${filename}.css`}
                   {mode === 'preview'  && 'Live Preview'}
                 </span>
@@ -269,7 +285,7 @@ export default function ExportJSON() {
                 ) : (
                   <div className="flex items-center gap-1.5">
                     <button
-                      onClick={() => handleCopy(activeContent, mode === 'php' ? 'PHP' : mode === 'css' ? 'CSS' : 'JSON')}
+                      onClick={() => handleCopy(activeContent, modeLabelFor(mode))}
                       className="flex items-center gap-1.5 text-xs px-2.5 py-1.5 rounded-lg bg-card border border-edge text-muted hover:text-ink hover:border-border transition-colors cursor-pointer"
                     >
                       {copied ? <Check size={11} className="text-success" /> : <Copy size={11} />}
