@@ -184,14 +184,14 @@ export default function ExportJSON() {
   return (
     <div className="flex-1 flex flex-col overflow-hidden">
       {/* Page header */}
-      <div className="flex items-center justify-between h-14 px-6 border-b border-edge shrink-0">
-        <div className="flex items-center gap-3">
-          <div className="w-7 h-7 rounded-lg bg-accent-dim flex items-center justify-center">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 py-3 px-4 sm:px-6 border-b border-edge shrink-0">
+        <div className="flex items-center gap-3 min-w-0">
+          <div className="w-7 h-7 rounded-lg bg-accent-dim flex items-center justify-center shrink-0">
             <Download size={14} className="text-accent-light" />
           </div>
-          <div>
+          <div className="min-w-0">
             <h1 className="text-sm font-semibold text-ink leading-none">Export JSON</h1>
-            <p className="text-[10px] text-dim mt-0.5">
+            <p className="text-[10px] text-dim mt-0.5 hidden sm:block">
               {hasDesign
                 ? 'Download your ACF JSON, PHP, CSS, or preview the generated design'
                 : 'Download your ACF JSON in pretty or minified format, or export as PHP'}
@@ -200,7 +200,7 @@ export default function ExportJSON() {
         </div>
 
         {/* Mode switcher */}
-        <div className="flex items-center gap-1 bg-elevated border border-edge rounded-lg p-1">
+        <div className="flex items-center gap-1 bg-elevated border border-edge rounded-lg p-1 overflow-x-auto max-w-full">
           {MODES.map((m) => {
             const Icon = m.icon
             const active = mode === m.id
@@ -208,7 +208,7 @@ export default function ExportJSON() {
               <button
                 key={m.id}
                 onClick={() => setMode(m.id)}
-                className={`flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-md font-medium transition-colors cursor-pointer ${
+                className={`flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-md font-medium transition-colors cursor-pointer shrink-0 ${
                   active ? 'bg-accent-dim text-accent-light' : 'text-dim hover:text-muted'
                 }`}
               >
@@ -253,8 +253,8 @@ export default function ExportJSON() {
               className="flex-1 flex flex-col rounded-xl border border-border bg-elevated overflow-hidden min-h-0"
             >
               {/* Toolbar */}
-              <div className="flex items-center justify-between px-4 py-3 border-b border-edge shrink-0">
-                <span className="text-xs font-medium text-ink">
+              <div className="flex items-center flex-wrap gap-2 justify-between px-4 py-3 border-b border-edge shrink-0">
+                <span className="text-xs font-medium text-ink truncate">
                   {mode === 'pretty'   && `${filename}.json`}
                   {mode === 'minified' && `${filename}.min.json`}
                   {mode === 'php'      && `${filename}.php`}

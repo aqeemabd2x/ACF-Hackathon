@@ -45,7 +45,7 @@ export default function ValidationReport({ validation, json }) {
         </div>
 
         {/* Stats row */}
-        <div className="grid grid-cols-4 gap-3">
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
           <StatCell label="Groups"   value={stats.groups}   />
           <StatCell label="Fields"   value={stats.fields}   />
           <StatCell label="Errors"   value={errors.length}   color={errors.length   > 0 ? 'text-error'   : undefined} />

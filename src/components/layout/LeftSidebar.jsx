@@ -25,8 +25,13 @@ const COLLAPSE_KEY = 'acf-left-sidebar-collapsed'
 const EXPANDED_W = 256 // w-64
 const COLLAPSED_W = 68
 
-export default function LeftSidebar() {
+export default function LeftSidebar({ mobileOpen = false, onCloseMobile }) {
   const { currentPage, setCurrentPage } = useAppStore()
+
+  const goTo = (page) => {
+    setCurrentPage(page)
+    onCloseMobile?.()
+  }
 
   // Remembered across reloads; expanded by default.
   const [collapsed, setCollapsed] = useState(() => {
@@ -50,7 +55,9 @@ export default function LeftSidebar() {
       initial={false}
       animate={{ width: collapsed ? COLLAPSED_W : EXPANDED_W }}
       transition={{ type: 'spring', damping: 30, stiffness: 320 }}
-      className="flex flex-col bg-surface border-r border-edge shrink-0 overflow-hidden"
+      className={`flex flex-col bg-surface border-r border-edge shrink-0 overflow-hidden fixed lg:static inset-y-0 left-0 z-50 shadow-2xl lg:shadow-none transition-transform duration-200 lg:translate-x-0 ${
+        mobileOpen ? 'translate-x-0' : '-translate-x-full'
+      }`}
     >
       {/* Logo + collapse toggle */}
       <div
@@ -104,7 +111,7 @@ export default function LeftSidebar() {
           return (
             <motion.button
               key={item.id}
-              onClick={() => setCurrentPage(item.id)}
+              onClick={() => goTo(item.id)}
               title={collapsed ? item.label : undefined}
               whileHover={collapsed ? undefined : { x: 2 }}
               whileTap={{ scale: 0.98 }}
@@ -125,7 +132,7 @@ export default function LeftSidebar() {
       {/* Bottom */}
       <div className={`border-t border-edge pt-3 pb-4 shrink-0 ${collapsed ? 'px-2' : 'px-3'}`}>
         <motion.button
-          onClick={() => setCurrentPage('settings')}
+          onClick={() => goTo('settings')}
           title={collapsed ? 'Settings' : undefined}
           whileHover={collapsed ? undefined : { x: 2 }}
           whileTap={{ scale: 0.98 }}

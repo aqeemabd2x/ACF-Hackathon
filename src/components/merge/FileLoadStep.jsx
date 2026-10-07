@@ -77,15 +77,15 @@ export default function FileLoadStep({ fileA, setFileA, fileB, setFileB, onAnaly
 
   return (
     <div className="flex-1 flex flex-col h-full overflow-y-auto p-6 gap-6">
-      <div className="grid grid-cols-[1fr_56px_1fr] gap-4 items-start">
+      <div className="flex flex-col lg:grid lg:grid-cols-[1fr_56px_1fr] gap-4 items-stretch lg:items-start">
         <FilePanel slot="A" file={fileA} setFile={setFileA} />
 
         {/* Center arrow */}
-        <div className="flex flex-col items-center justify-center pt-12 gap-1.5">
+        <div className="flex lg:flex-col items-center justify-center lg:pt-12 gap-1.5 py-1">
           <div className={`w-10 h-10 rounded-full border flex items-center justify-center transition-all ${
             canAnalyze ? 'bg-success/10 border-success/30' : 'bg-elevated border-edge'
           }`}>
-            <ArrowRight size={16} className={canAnalyze ? 'text-success' : 'text-dim'} />
+            <ArrowRight size={16} className={`rotate-90 lg:rotate-0 ${canAnalyze ? 'text-success' : 'text-dim'}`} />
           </div>
           <div className="text-[9px] text-dim uppercase tracking-wider">vs</div>
         </div>

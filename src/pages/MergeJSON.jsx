@@ -56,23 +56,23 @@ export default function MergeJSON() {
   return (
     <div className="flex-1 flex flex-col overflow-hidden">
       {/* Header */}
-      <div className="flex items-center justify-between h-14 px-6 border-b border-edge shrink-0">
-        <div className="flex items-center gap-3">
-          <div className="w-7 h-7 rounded-lg bg-success/15 flex items-center justify-center">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 py-3 px-4 sm:px-6 border-b border-edge shrink-0">
+        <div className="flex items-center gap-3 min-w-0">
+          <div className="w-7 h-7 rounded-lg bg-success/15 flex items-center justify-center shrink-0">
             <GitMerge size={14} className="text-success" />
           </div>
-          <div>
+          <div className="min-w-0">
             <h1 className="text-sm font-semibold text-ink leading-none">Merge ACF JSON</h1>
-            <p className="text-[10px] text-dim mt-0.5">
+            <p className="text-[10px] text-dim mt-0.5 hidden sm:block">
               Cherry-pick fields from File A to transfer into File B
             </p>
           </div>
         </div>
 
         {/* Stepper */}
-        <div className="flex items-center gap-1">
+        <div className="flex items-center gap-1 overflow-x-auto max-w-full">
           {STEPS.map((label, i) => (
-            <div key={i} className="flex items-center gap-1">
+            <div key={i} className="flex items-center gap-1 shrink-0">
               <button
                 onClick={() => i < step && setStep(i)}
                 className={`flex items-center gap-1.5 text-xs px-2.5 py-1.5 rounded-lg transition-colors ${
@@ -88,7 +88,7 @@ export default function MergeJSON() {
                 }`}>
                   {i < step ? <Check size={8} /> : i + 1}
                 </span>
-                {label}
+                <span className="hidden sm:inline">{label}</span>
               </button>
               {i < STEPS.length - 1 && (
                 <ChevronRight size={11} className="text-dim shrink-0" />

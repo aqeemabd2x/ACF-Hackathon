@@ -65,17 +65,17 @@ export default function MergeResultStep({ mergedJson, onLoad, onBack }) {
   return (
     <div className="flex flex-col h-full overflow-hidden">
       {/* Toolbar */}
-      <div className="flex items-center justify-between px-6 py-3 border-b border-edge shrink-0">
-        <div className="flex items-center gap-3">
+      <div className="flex items-center flex-wrap gap-3 justify-between px-6 py-3 border-b border-edge shrink-0">
+        <div className="flex items-center flex-wrap gap-3">
           <CheckCircle2 size={15} className="text-success" />
           <span className="text-sm font-semibold text-ink">Merge Complete</span>
-          <div className="flex items-center gap-2 ml-2">
+          <div className="flex items-center gap-2">
             <Badge label={`${stats.groups} group${stats.groups !== 1 ? 's' : ''}`} />
             <Badge label={`${stats.fields} fields`} />
           </div>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center flex-wrap gap-2">
           <button
             onClick={handleCopy}
             className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg bg-card border border-edge text-muted hover:text-ink hover:border-border transition-colors cursor-pointer"

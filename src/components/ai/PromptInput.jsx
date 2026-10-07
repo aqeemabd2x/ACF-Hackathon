@@ -175,7 +175,7 @@ export default function PromptInput({ onGenerate, isLoading }) {
             exit={{ opacity: 0, y: -6, scaleY: 0.95 }}
             transition={{ duration: 0.15 }}
             style={{ transformOrigin: 'top' }}
-            className="mt-2 rounded-xl border border-border bg-elevated p-2 grid grid-cols-3 gap-2"
+            className="mt-2 rounded-xl border border-border bg-elevated p-2 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2"
           >
             {EXAMPLES.map((ex) => (
               <button

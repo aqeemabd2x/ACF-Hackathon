@@ -205,8 +205,8 @@ export default function DiffStep({
 
                       {/* Inline conflict resolver (only when selected) */}
                       {status === 'conflict' && isSelected && conflictWith && (
-                        <div className="pl-[52px] pr-4 pb-3 space-y-2">
-                          <div className="grid grid-cols-2 gap-2">
+                        <div className="pl-4 sm:pl-[52px] pr-4 pb-3 space-y-2">
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                             <FieldCard title="From A (incoming)" accent="text-info" field={field} />
                             <FieldCard title="In B (existing)"   accent="text-muted" field={conflictWith} />
                           </div>

@@ -178,14 +178,14 @@ export default function ImportJSON() {
   return (
     <div className="flex-1 flex flex-col overflow-hidden">
       {/* Header */}
-      <div className="flex items-center h-14 px-6 border-b border-edge shrink-0">
+      <div className="flex items-center min-h-14 py-2 px-4 sm:px-6 border-b border-edge shrink-0">
         <div className="flex items-center gap-3">
-          <div className="w-7 h-7 rounded-lg bg-info/15 flex items-center justify-center">
+          <div className="w-7 h-7 rounded-lg bg-info/15 flex items-center justify-center shrink-0">
             <Upload size={14} className="text-info" />
           </div>
-          <div>
+          <div className="min-w-0">
             <h1 className="text-sm font-semibold text-ink leading-none">Import & Validate</h1>
-            <p className="text-[10px] text-dim mt-0.5">
+            <p className="text-[10px] text-dim mt-0.5 hidden sm:block">
               Upload ACF JSON, deep scan it with Gemini, fix issues, then load it into the workspace
             </p>
           </div>
@@ -193,9 +193,9 @@ export default function ImportJSON() {
       </div>
 
       {/* Body */}
-      <div className="flex-1 overflow-hidden flex min-h-0">
+      <div className="flex-1 overflow-y-auto lg:overflow-hidden flex flex-col lg:flex-row min-h-0">
         {/* ── Left panel ─────────────────────────────────────────── */}
-        <div className="w-[360px] shrink-0 border-r border-edge flex flex-col p-5 gap-4 overflow-y-auto">
+        <div className="w-full lg:w-[360px] lg:shrink-0 border-b lg:border-b-0 lg:border-r border-edge flex flex-col p-5 gap-4 lg:overflow-y-auto">
           <DropZone onJson={handleUpload} />
 
           {json && !hasUploaded && !isBusy && (
@@ -239,7 +239,7 @@ export default function ImportJSON() {
         </div>
 
         {/* ── Right panel ────────────────────────────────────────── */}
-        <div className="flex-1 overflow-y-auto p-5">
+        <div className="lg:flex-1 p-5 lg:overflow-y-auto">
           {!json ? (
             <EmptyState />
           ) : (
@@ -259,7 +259,7 @@ export default function ImportJSON() {
 
               {/* Scan bar */}
               <div className="bg-elevated border border-edge rounded-xl px-5 py-4 space-y-3">
-                <div className="flex items-center justify-between gap-4">
+                <div className="flex items-center flex-wrap justify-between gap-4">
                   <div className="min-w-0">
                     <div className="flex items-center gap-2 text-sm font-medium text-ink">
                       {isBusy && (

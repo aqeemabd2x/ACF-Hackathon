@@ -190,14 +190,14 @@ export default function CreateACF() {
   return (
     <div className="flex-1 flex flex-col overflow-hidden">
       {/* Page header */}
-      <div className="flex items-center justify-between h-14 px-6 border-b border-edge shrink-0">
-        <div className="flex items-center gap-3">
-          <div className="w-7 h-7 rounded-lg bg-accent-dim flex items-center justify-center">
+      <div className="flex flex-wrap items-center justify-between gap-3 py-3 px-4 sm:px-6 border-b border-edge shrink-0">
+        <div className="flex items-center gap-3 min-w-0">
+          <div className="w-7 h-7 rounded-lg bg-accent-dim flex items-center justify-center shrink-0">
             <Sparkles size={14} className="text-accent-light" />
           </div>
-          <div>
+          <div className="min-w-0">
             <h1 className="text-sm font-semibold text-ink leading-none">AI ACF Generator</h1>
-            <p className="text-[10px] text-dim mt-0.5">
+            <p className="text-[10px] text-dim mt-0.5 hidden sm:block">
               Describe your fields — optionally attach a design screenshot — Gemini generates valid ACF JSON
             </p>
           </div>
@@ -240,9 +240,9 @@ export default function CreateACF() {
       </div>
 
       {/* Body */}
-      <div className="flex-1 overflow-hidden flex min-h-0">
+      <div className="flex-1 overflow-y-auto lg:overflow-hidden flex flex-col lg:flex-row min-h-0">
         {/* Main */}
-        <div className="flex-1 flex flex-col overflow-hidden p-5 gap-4 min-w-0">
+        <div className="flex-1 flex flex-col lg:overflow-hidden p-5 gap-4 min-w-0">
           {/* Input card */}
           <div className="shrink-0">
             <div className="rounded-xl border border-border bg-elevated overflow-hidden">
@@ -348,7 +348,7 @@ export default function CreateACF() {
                   exit={{ opacity: 0, y: -6, scaleY: 0.95 }}
                   transition={{ duration: 0.15 }}
                   style={{ transformOrigin: 'top' }}
-                  className="mt-2 rounded-xl border border-border bg-elevated p-2 grid grid-cols-3 gap-2"
+                  className="mt-2 rounded-xl border border-border bg-elevated p-2 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2"
                 >
                   {EXAMPLES.map((ex) => (
                     <button
@@ -426,7 +426,7 @@ export default function CreateACF() {
               animate={{ width: 300, opacity: 1 }}
               exit={{ width: 0, opacity: 0 }}
               transition={{ type: 'spring', damping: 25, stiffness: 300 }}
-              className="border-l border-edge bg-surface overflow-hidden shrink-0 flex flex-col"
+              className="max-w-full border-t lg:border-t-0 lg:border-l border-edge bg-surface overflow-hidden shrink-0 flex flex-col"
             >
               <div className="flex items-center justify-between px-4 py-3 border-b border-edge shrink-0">
                 <span className="text-xs font-semibold text-muted uppercase tracking-wider">

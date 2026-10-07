@@ -126,8 +126,8 @@ export default function GeneratedResult({ json, onEdit }) {
   return (
     <div className="h-full flex flex-col rounded-xl border border-border bg-elevated overflow-hidden">
       {/* Header */}
-      <div className="flex items-center justify-between px-4 py-3 border-b border-edge shrink-0">
-        <div className="flex items-center gap-2">
+      <div className="flex items-center flex-wrap gap-2 justify-between px-4 py-3 border-b border-edge shrink-0">
+        <div className="flex items-center gap-2 flex-wrap">
           <Code2 size={14} className="text-success" />
           <span className="text-sm font-medium text-ink">Generated JSON</span>
           <span className="text-[10px] px-2 py-0.5 rounded-full bg-success/10 text-success border border-success/20 font-medium">
@@ -135,7 +135,7 @@ export default function GeneratedResult({ json, onEdit }) {
           </span>
         </div>
 
-        <div className="flex items-center gap-1.5">
+        <div className="flex items-center gap-1.5 flex-wrap">
           {/* Minify toggle */}
           <button
             onClick={() => setIsMinified(!isMinified)}
